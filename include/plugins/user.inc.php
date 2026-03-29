@@ -1,4 +1,20 @@
 <?php
+$email = '';
+$username = '';
+$passwort = '';
+$profilpicturecheck = '';
+$upd_profilpicture = '';
+$upd_profilpicturecheck = false;
+$role_adminstrator_select = '';
+$role_manager_select = '';
+$role_supporter_select = '';
+$role_member_select = '';
+$role_user_select = '';
+$gender_female_select = '';
+$gender_male_select = '';
+$gender_other_select = '';
+$gender_noinformation_select = '';
+
 if (isset($_GET['aktion']) and $_GET['aktion'] == 'loeschen') {
     if (isset($_GET['id'])) {
         $id = (INT)$_GET['id'];
@@ -109,7 +125,7 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
         }
     }
 
-    if ($_POST['profilpicturecheck'] === 'same') {
+    if (isset($_POST['profilpicturecheck']) && $_POST['profilpicturecheck'] === 'same') {
         $upd_profilpicturecheck = $_POST['profilpicturecheck'];
     } else {
         $upd_profilpicturecheck = false;
@@ -125,12 +141,12 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
     }
 
     //Überprüfe, dass die E-Mail-Adresse und der Benutzername noch nicht registriert wurden
-    $statement = $pdo->prepare("SELECT * FROM users WHERE email = :email");
-    $result = $statement->execute(array('email' => $email));
+    $statement = $pdo->prepare("SELECT * FROM users WHERE email = :email AND id != :id");
+    $result = $statement->execute(array('email' => $upd_email, 'id' => $upd_id));
     $user = $statement->fetch();
 
-    $username_statement = $pdo->prepare("SELECT * FROM users WHERE username = :username");
-    $username_result = $username_statement->execute(array('username' => $username));
+    $username_statement = $pdo->prepare("SELECT * FROM users WHERE username = :username AND id != :id");
+    $username_result = $username_statement->execute(array('username' => $upd_username, 'id' => $upd_id));
     $username_user = $username_statement->fetch();
 
     if ($user !== false) {
@@ -148,7 +164,7 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
             $update = $db->prepare("UPDATE users SET vorname =?, nachname=?, email=?, role=?, biography=?, gender=?, birthday=?, username=?, passwort=? WHERE id=? LIMIT 1");
             $update->bind_param('sssssssssi', $upd_vorname, $upd_nachname, $upd_email, $upd_role, $upd_biography, $upd_gender, $upd_birthday, $upd_username, $upd_passwort, $upd_id);
 
-            if ($upd_profilpicture) {
+            if (!empty($upd_profilpicture)) {
                 $upload_folder = '../include/database/profilpictures/'; //Das Upload-Verzeichnis
                 $filename = "$upd_id";
                 $extension = strtolower(pathinfo($_FILES['profilpicture']['name'], PATHINFO_EXTENSION));
@@ -197,55 +213,55 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
         }
     }
 
-    if (isset($_POST['aktion']) and $_POST['aktion'] == 'speichern') {
-        $vorname = "";
-        if (isset($_POST['vorname'])) {
-            $vorname = trim($_POST['vorname']);
-        }
-        $nachname = "";
-        if (isset($_POST['nachname'])) {
-            $nachname = trim($_POST['nachname']);
-        }
-        $email = "";
-        if (isset($_POST['email'])) {
-            $email = trim($_POST['email']);
-        }
-        $role = "";
-        if (isset($_POST['role'])) {
-            $role = trim($_POST['role']);
-        }
-        $biography = "";
-        if (isset($_POST['biography'])) {
-            $biography = trim($_POST['biography']);
-        }
-        $gender = "";
-        if (isset($_POST['gender'])) {
-            $gender = trim($_POST['gender']);
-        }
-        $birthday = "";
-        if (isset($_POST['birthday'])) {
-            $birthday = trim($_POST['birthday']);
-        }
-        $username = "";
-        if (isset($_POST['username'])) {
-            $username = trim($_POST['username']);
-        }
-        if (!empty($_POST['passwort'])) {
-            $passwort = trim($_POST['passwort']);
-        }
+}
+if (isset($_POST['aktion']) and $_POST['aktion'] == 'speichern') {
+    $vorname = "";
+    if (isset($_POST['vorname'])) {
+        $vorname = trim($_POST['vorname']);
+    }
+    $nachname = "";
+    if (isset($_POST['nachname'])) {
+        $nachname = trim($_POST['nachname']);
+    }
+    $email = "";
+    if (isset($_POST['email'])) {
+        $email = trim($_POST['email']);
+    }
+    $role = "";
+    if (isset($_POST['role'])) {
+        $role = trim($_POST['role']);
+    }
+    $biography = "";
+    if (isset($_POST['biography'])) {
+        $biography = trim($_POST['biography']);
+    }
+    $gender = "";
+    if (isset($_POST['gender'])) {
+        $gender = trim($_POST['gender']);
+    }
+    $birthday = "";
+    if (isset($_POST['birthday'])) {
+        $birthday = trim($_POST['birthday']);
+    }
+    $username = "";
+    if (isset($_POST['username'])) {
+        $username = trim($_POST['username']);
+    }
+    if (!empty($_POST['passwort'])) {
+        $passwort = trim($_POST['passwort']);
+    }
 
-        if ($vorname != '' or $nachname != '' or $email != '' or $role != '' or $biography != '' or $gender != '' or $birthday != '' or $username != '' or $passwort != '') {
+    if ($vorname != '' or $nachname != '' or $email != '' or $role != '' or $biography != '' or $gender != '' or $birthday != '' or $username != '' or $passwort != '') {
 
 
-            // speichern
-            $einfuegen = $db->prepare("INSERT INTO users (vorname, nachname, email, role, biography, gender, birthday, username, passwort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $einfuegen->bind_param('sssssssss', $vorname, $nachname, $email, $role, $biography, $gender, $birthday, $username, $passwort);
+        // speichern
+        $einfuegen = $db->prepare("INSERT INTO users (vorname, nachname, email, role, biography, gender, birthday, username, passwort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $einfuegen->bind_param('sssssssss', $vorname, $nachname, $email, $role, $biography, $gender, $birthday, $username, $passwort);
 
-            if ($einfuegen->execute()) {
-                header('Location: user?aktion=feedbackgespeichert');
-                die();
-                $msg = 'gespeichert';
-            }
+        if ($einfuegen->execute()) {
+            header('Location: user?aktion=feedbackgespeichert');
+            die();
+            $msg = 'gespeichert';
         }
     }
 }

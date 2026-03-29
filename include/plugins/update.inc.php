@@ -1,5 +1,13 @@
 <?php
 ini_set('max_execution_time',60);
+$your_version = '';
+$search_update = '';
+$new_update = '';
+$download_update = '';
+$new_update_found = false;
+$no_update = '';
+$updated = false;
+$found = false;
 //Suche nach Updates
 $getVersions = @file_get_contents('https://update.lupusgui.de/current-release-versions.php');
 $current_version = $options['version'];
