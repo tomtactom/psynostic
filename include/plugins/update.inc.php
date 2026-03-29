@@ -1,9 +1,9 @@
 <?php
 ini_set('max_execution_time',60);
 //Suche nach Updates
-$getVersions = file_get_contents('https://update.lupusgui.de/current-release-versions.php') or die ('ERROR');
+$getVersions = @file_get_contents('https://update.lupusgui.de/current-release-versions.php');
 $current_version = $options['version'];
-if ($getVersions != '') {
+if ($getVersions !== false && $getVersions !== '') {
 	$your_version = 'Aktuelle Version: v'.$current_version;
 	$search_update = 'Suche nach neuen Updates...';
 	$versionList = explode("\n", $getVersions);	
@@ -16,7 +16,11 @@ if ($getVersions != '') {
 			//Lade Datei herunter, Wenn sie noch nicht vorhanden sind
 			if ( !is_file(  $_SERVER['DOCUMENT_ROOT'].'lupusgui-'.$aV.'.zip' )) {
 				$download_update = 'Läd Update herunter...';
-				$newUpdate = file_get_contents('https://update.lupusgui.de/update/lupusgui-'.$aV.'.zip');
+				$newUpdate = @file_get_contents('https://update.lupusgui.de/update/lupusgui-'.$aV.'.zip');
+				if ($newUpdate === false) {
+					$error = 'Update konnte nicht heruntergeladen werden. Vorgang abgebrochen';
+					break;
+				}
 				$dlHandler = fopen($_SERVER['DOCUMENT_ROOT'].'lupusgui-'.$aV.'.zip', 'w');
 				if ( !fwrite($dlHandler, $newUpdate) ) {
 					$error = 'Update konnte nicht gespeichert werden. Vorgang abgebrochen'; 
@@ -79,5 +83,7 @@ if ($getVersions != '') {
 	} elseif ($found != true) {
 			$msg = '&raquo; Kein Update verfügbar.';
 	}
+} elseif ($getVersions === false) {
+	$msg = '&raquo; Update-Server momentan nicht erreichbar.';
 }
 ?>
