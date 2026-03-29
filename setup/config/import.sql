@@ -92,6 +92,12 @@ CREATE TABLE IF NOT EXISTS `questionnaires` (
   `intro_text` text COLLATE utf8mb4_unicode_ci,
   `standard_rules_json` longtext COLLATE utf8mb4_unicode_ci,
   `scoring_config_json` longtext COLLATE utf8mb4_unicode_ci,
+  `scale_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'likert',
+  `likert_min` int(10) NOT NULL DEFAULT 1,
+  `likert_max` int(10) NOT NULL DEFAULT 5,
+  `scale_labels_json` longtext COLLATE utf8mb4_unicode_ci,
+  `raw_mapping_json` longtext COLLATE utf8mb4_unicode_ci,
+  `needs_manual_scale_cleanup` tinyint(1) NOT NULL DEFAULT 0,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -115,6 +121,19 @@ CREATE TABLE IF NOT EXISTS `questionnaire_items` (
   KEY `idx_questionnaire_items_questionnaire_id` (`questionnaire_id`),
   UNIQUE KEY `uniq_questionnaire_items_questionnaire_item_key` (`questionnaire_id`,`item_key`),
   CONSTRAINT `fk_questionnaire_items_questionnaire_id`
+    FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `questionnaire_scale_options` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `questionnaire_id` int(10) unsigned NOT NULL,
+  `raw_value` decimal(10,4) NOT NULL,
+  `mapped_value` decimal(10,4) NOT NULL,
+  `option_label` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_questionnaire_scale_options_raw` (`questionnaire_id`,`raw_value`),
+  KEY `idx_questionnaire_scale_options_questionnaire_id` (`questionnaire_id`),
+  CONSTRAINT `fk_questionnaire_scale_options_questionnaire_id`
     FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

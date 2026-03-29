@@ -6,8 +6,7 @@
 	$questionnaireId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 	$errors = array();
 	$messages = array();
-	$allowedScaleTypes = array('likert', 'binary', 'custom');
-	$itemCsvColumns = array('item_no', 'item_text', 'scale_type', 'likert_min', 'likert_max', 'is_reversed', 'subscale_key', 'is_required');
+	$itemCsvColumns = array('item_no', 'item_text', 'is_reversed', 'subscale_key', 'is_required');
 
 	function questionnaireItemsDownloadTemplate(array $columns)
 	{
@@ -15,8 +14,8 @@
 		header('Content-Disposition: attachment; filename="questionnaire-items-template-v1.csv"');
 		$output = fopen('php://output', 'w');
 		fputcsv($output, $columns);
-		fputcsv($output, array('1', 'Ich fühle mich heute ausgeglichen.', 'likert', '1', '5', '0', 'wohlbefinden', '1'));
-		fputcsv($output, array('2', 'Ich habe in letzter Zeit schlecht geschlafen.', 'likert', '1', '5', '1', 'stress', '1'));
+		fputcsv($output, array('1', 'Ich fühle mich heute ausgeglichen.', '0', 'wohlbefinden', '1'));
+		fputcsv($output, array('2', 'Ich habe in letzter Zeit schlecht geschlafen.', '1', 'stress', '1'));
 		fclose($output);
 		exit;
 	}
@@ -58,7 +57,7 @@
 		}
 	}
 
-	function validateItemInput(array $input, array $allowedScaleTypes, &$itemData)
+	function validateItemInput(array $input, &$itemData)
 	{
 		$validationErrors = array();
 
@@ -66,9 +65,7 @@
 			'item_id' => isset($input['item_id']) ? (int)$input['item_id'] : 0,
 			'item_no' => isset($input['item_no']) ? (int)$input['item_no'] : 0,
 			'item_text' => isset($input['item_text']) ? trim((string)$input['item_text']) : '',
-			'scale_type' => isset($input['scale_type']) ? trim((string)$input['scale_type']) : '',
-			'likert_min' => isset($input['likert_min']) ? (int)$input['likert_min'] : 0,
-			'likert_max' => isset($input['likert_max']) ? (int)$input['likert_max'] : 0,
+
 			'is_reversed' => isset($input['is_reversed']) && (string)$input['is_reversed'] === '1' ? 1 : 0,
 			'subscale_key' => isset($input['subscale_key']) ? trim((string)$input['subscale_key']) : '',
 			'is_required' => isset($input['is_required']) && (string)$input['is_required'] === '1' ? 1 : 0,
@@ -79,15 +76,6 @@
 		}
 		if ($itemData['item_text'] === '' || mb_strlen($itemData['item_text']) > 20000) {
 			$validationErrors[] = 'Itemtext ist erforderlich und darf maximal 20.000 Zeichen lang sein.';
-		}
-		if (!in_array($itemData['scale_type'], $allowedScaleTypes, true)) {
-			$validationErrors[] = 'Ungültiger Skalentyp.';
-		}
-		if ($itemData['likert_min'] < -100 || $itemData['likert_max'] > 100 || $itemData['likert_min'] >= $itemData['likert_max']) {
-			$validationErrors[] = 'Likert-Min/Max sind ungültig (erlaubt -100 bis 100, Min muss kleiner als Max sein).';
-		}
-		if ($itemData['scale_type'] === 'binary' && !($itemData['likert_min'] === 0 && $itemData['likert_max'] === 1)) {
-			$validationErrors[] = 'Beim Skalentyp "binary" müssen Likert-Min/Max exakt 0 und 1 sein.';
 		}
 		if ($itemData['subscale_key'] !== '' && !preg_match('/^[a-zA-Z0-9_\-]{1,100}$/', $itemData['subscale_key'])) {
 			$validationErrors[] = 'Subskalen-Key darf nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten (max. 100 Zeichen).';
@@ -111,9 +99,6 @@
 			'item_id' => 0,
 			'item_no' => 0,
 			'item_text' => '',
-			'scale_type' => 'likert',
-			'likert_min' => 1,
-			'likert_max' => 5,
 			'is_reversed' => 0,
 			'subscale_key' => '',
 			'is_required' => 1
@@ -136,7 +121,7 @@
 	$questionnaireStmt->execute(array(':id' => $questionnaireId));
 	$questionnaire = $questionnaireStmt->fetch(PDO::FETCH_ASSOC);
 	if (!$questionnaire) {
-		die('<p>Fragebogen nicht gefunden.</p>');
+		return null;
 	}
 
 	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_items_csv'])) {
@@ -173,7 +158,7 @@
 
 								$itemPayload = csvRowToItemPayload($row, $header);
 								$itemData = array();
-								$rowErrors = validateItemInput($itemPayload, $allowedScaleTypes, $itemData);
+								$rowErrors = validateItemInput($itemPayload, $itemData);
 								if (!empty($rowErrors)) {
 									foreach ($rowErrors as $rowError) {
 										$errors[] = 'CSV Zeile '.$rowNumber.': '.$rowError;
@@ -191,12 +176,9 @@
 								}
 
 								if ($existingItemId > 0 && $importMode === 'update') {
-									$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_text = :item_text, scale_type = :scale_type, likert_min = :likert_min, likert_max = :likert_max, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
+									$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_text = :item_text, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
 									$updateStmt->execute(array(
 										':item_text' => $itemData['item_text'],
-										':scale_type' => $itemData['scale_type'],
-										':likert_min' => $itemData['likert_min'],
-										':likert_max' => $itemData['likert_max'],
 										':is_reversed' => $itemData['is_reversed'],
 										':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 										':is_required' => $itemData['is_required'],
@@ -205,14 +187,11 @@
 									));
 									$updatedCount++;
 								} else {
-									$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :scale_type, :likert_min, :likert_max, :is_reversed, :subscale_key, :is_required)');
+									$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :is_reversed, :subscale_key, :is_required)');
 									$insertStmt->execute(array(
 										':questionnaire_id' => $questionnaireId,
 										':item_no' => $itemData['item_no'],
 										':item_text' => $itemData['item_text'],
-										':scale_type' => $itemData['scale_type'],
-										':likert_min' => $itemData['likert_min'],
-										':likert_max' => $itemData['likert_max'],
 										':is_reversed' => $itemData['is_reversed'],
 										':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 										':is_required' => $itemData['is_required']
@@ -232,74 +211,21 @@
 		}
 	}
 
-	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
-		$bulkAction = isset($_POST['bulk_action_type']) ? trim((string)$_POST['bulk_action_type']) : '';
-		$rawIds = isset($_POST['selected_item_ids']) && is_array($_POST['selected_item_ids']) ? $_POST['selected_item_ids'] : array();
-		$itemIds = array_values(array_unique(array_filter(array_map('intval', $rawIds), function ($value) {
-			return $value > 0;
-		})));
-
-		if (empty($itemIds)) {
-			$errors[] = 'Für die Sammelaktion müssen mindestens ein Item ausgewählt werden.';
-		} else {
-			$placeholders = implode(',', array_fill(0, count($itemIds), '?'));
-			$params = array_merge(array($questionnaireId), $itemIds);
-			$checkSql = 'SELECT id FROM questionnaire_items WHERE questionnaire_id = ? AND id IN ('.$placeholders.')';
-			$checkStmt = $pdo->prepare($checkSql);
-			$checkStmt->execute($params);
-			$existingIds = $checkStmt->fetchAll(PDO::FETCH_COLUMN, 0);
-			if (count($existingIds) !== count($itemIds)) {
-				$errors[] = 'Mindestens ein ausgewähltes Item ist ungültig.';
-			}
-		}
-
-		if (empty($errors)) {
-			if ($bulkAction === 'mark_required' || $bulkAction === 'mark_optional') {
-				$isRequired = $bulkAction === 'mark_required' ? 1 : 0;
-				$placeholders = implode(',', array_fill(0, count($itemIds), '?'));
-				$params = array_merge(array($isRequired, $questionnaireId), $itemIds);
-				$bulkStmt = $pdo->prepare('UPDATE questionnaire_items SET is_required = ? WHERE questionnaire_id = ? AND id IN ('.$placeholders.')');
-				$bulkStmt->execute($params);
-				$messages[] = 'Sammelaktion ausgeführt: Pflichtstatus wurde aktualisiert.';
-			} elseif ($bulkAction === 'set_subscale' || $bulkAction === 'clear_subscale') {
-				$subscaleKey = $bulkAction === 'clear_subscale' ? '' : (isset($_POST['bulk_subscale_key']) ? trim((string)$_POST['bulk_subscale_key']) : '');
-				if ($bulkAction === 'set_subscale' && $subscaleKey === '') {
-					$errors[] = 'Für diese Sammelaktion muss ein Subskalen-Key angegeben werden.';
-				}
-				if ($subscaleKey !== '' && !preg_match('/^[a-zA-Z0-9_\-]{1,100}$/', $subscaleKey)) {
-					$errors[] = 'Subskalen-Key darf nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten (max. 100 Zeichen).';
-				}
-				if (empty($errors)) {
-					$placeholders = implode(',', array_fill(0, count($itemIds), '?'));
-					$params = array_merge(array($subscaleKey === '' ? null : $subscaleKey, $questionnaireId), $itemIds);
-					$bulkStmt = $pdo->prepare('UPDATE questionnaire_items SET subscale_key = ? WHERE questionnaire_id = ? AND id IN ('.$placeholders.')');
-					$bulkStmt->execute($params);
-					$messages[] = 'Sammelaktion ausgeführt: Subskalen-Key wurde aktualisiert.';
-				}
-			} else {
-				$errors[] = 'Ungültige Sammelaktion.';
-			}
-		}
+	$ownerColumn = questionnaireItemsPageOwnershipColumn($pdo);
+	if ($ownerColumn === null) {
+		return $questionnaire;
 	}
 
-	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_item'])) {
-		$itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
-		if ($itemId <= 0) {
-			$errors[] = 'Ungültige Item-ID.';
-		} else {
-			$deleteStmt = $pdo->prepare('DELETE FROM questionnaire_items WHERE id = :item_id AND questionnaire_id = :questionnaire_id LIMIT 1');
-			$deleteStmt->execute(array(':item_id' => $itemId, ':questionnaire_id' => $questionnaireId));
-			if ($deleteStmt->rowCount() > 0) {
-				$messages[] = 'Item wurde gelöscht.';
-			} else {
-				$errors[] = 'Item konnte nicht gelöscht werden.';
-			}
-		}
+	$ownerStmt = $pdo->prepare('SELECT '.$ownerColumn.' FROM questionnaires WHERE id = :id LIMIT 1');
+	$ownerStmt->execute(array(':id' => $questionnaireId));
+	$ownerId = (int)$ownerStmt->fetchColumn();
+	if ($ownerId > 0 && $ownerId !== (int)$user['id']) {
+		return false;
 	}
 
 	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_item'])) {
 		$itemData = array();
-		$validationErrors = validateItemInput($_POST, $allowedScaleTypes, $itemData);
+		$validationErrors = validateItemInput($_POST, $itemData);
 		$errors = array_merge($errors, $validationErrors);
 
 		if (empty($validationErrors)) {
@@ -316,13 +242,11 @@
 
 		if (empty($errors)) {
 			if ($itemData['item_id'] > 0) {
-				$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_no = :item_no, item_text = :item_text, scale_type = :scale_type, likert_min = :likert_min, likert_max = :likert_max, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
+				$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_no = :item_no, item_text = :item_text, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
 				$updateStmt->execute(array(
 					':item_no' => $itemData['item_no'],
 					':item_text' => $itemData['item_text'],
-					':scale_type' => $itemData['scale_type'],
-					':likert_min' => $itemData['likert_min'],
-					':likert_max' => $itemData['likert_max'],
+
 					':is_reversed' => $itemData['is_reversed'],
 					':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 					':is_required' => $itemData['is_required'],
@@ -331,14 +255,12 @@
 				));
 				$messages[] = 'Item wurde aktualisiert.';
 			} else {
-				$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :scale_type, :likert_min, :likert_max, :is_reversed, :subscale_key, :is_required)');
+				$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :is_reversed, :subscale_key, :is_required)');
 				$insertStmt->execute(array(
 					':questionnaire_id' => $questionnaireId,
 					':item_no' => $itemData['item_no'],
 					':item_text' => $itemData['item_text'],
-					':scale_type' => $itemData['scale_type'],
-					':likert_min' => $itemData['likert_min'],
-					':likert_max' => $itemData['likert_max'],
+
 					':is_reversed' => $itemData['is_reversed'],
 					':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 					':is_required' => $itemData['is_required']
@@ -348,14 +270,10 @@
 		}
 	}
 
-	$filterItemNo = isset($_GET['filter_item_no']) ? trim((string)$_GET['filter_item_no']) : '';
-	$filterSubscale = isset($_GET['filter_subscale_key']) ? trim((string)$_GET['filter_subscale_key']) : '';
-	$filterRequired = isset($_GET['filter_required']) ? trim((string)$_GET['filter_required']) : 'all';
-	if (!in_array($filterRequired, array('all', '1', '0'), true)) {
-		$filterRequired = 'all';
-	}
+$user = check_user();
+$questionnaireId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-	$sql = 'SELECT id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id';
+	$sql = 'SELECT id, item_no, item_text, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id';
 	$params = array(':questionnaire_id' => $questionnaireId);
 
 	if ($filterItemNo !== '' && ctype_digit($filterItemNo)) {
@@ -379,7 +297,7 @@
 	$editItemId = isset($_GET['edit_item_id']) ? (int)$_GET['edit_item_id'] : 0;
 	$editItem = null;
 	if ($editItemId > 0) {
-		$editStmt = $pdo->prepare('SELECT id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
+		$editStmt = $pdo->prepare('SELECT id, item_no, item_text, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
 		$editStmt->execute(array(':id' => $editItemId, ':questionnaire_id' => $questionnaireId));
 		$editItem = $editStmt->fetch(PDO::FETCH_ASSOC);
 		if (!$editItem) {
@@ -387,45 +305,20 @@
 		}
 	}
 ?>
-<article class="qnr-layout qnr-layout--backend">
+<main class="qnr-layout qnr-layout--backend">
 	<section class="qnr-card">
-		<h1>Item-Verwaltung</h1>
+		<h1>Item-Builder</h1>
 		<p><a href="questionnaires.php">&laquo; Zurück zur Fragebogenliste</a> | <a href="questionnaire_edit.php?id=<?php echo (int)$questionnaireId; ?>">Stammdaten bearbeiten</a></p>
 		<p><strong>Fragebogen:</strong> <?php echo htmlentities($questionnaire['title']); ?> (<?php echo htmlentities($questionnaire['slug']); ?>)</p>
-	</section>
-
-	<section class="qnr-card qnr-card--accent">
-		<h2>Schnellstart</h2>
-		<ul>
-			<li>Für manuelle Eingabe: Mit <em>„Nächste freie Nummer“</em> wird die Item-Nr. automatisch gesetzt.</li>
-			<li>Für viele Items: CSV-Vorlage herunterladen, in Excel/LibreOffice ausfüllen und importieren.</li>
-			<li>Bei CSV-Import kann optional über Item-Nr. aktualisiert werden.</li>
-		</ul>
-		<form action="" method="get" class="qnr-inline-form">
-			<input type="hidden" name="id" value="<?php echo (int)$questionnaireId; ?>">
-			<input type="hidden" name="download_items_template" value="1">
-			<button class="qnr-btn qnr-btn--secondary qnr-focusable" type="submit">CSV-Vorlage herunterladen</button>
-		</form>
+		<p id="save-status" class="qnr-alert qnr-alert--info" aria-live="polite">Lade Items …</p>
+		<p id="item-builder-error" class="qnr-alert qnr-alert--error" hidden></p>
 	</section>
 
 	<section class="qnr-card">
-		<h2>Items per CSV importieren</h2>
-		<form action="" method="post" enctype="multipart/form-data">
-			<div class="qnr-grid qnr-grid--2">
-				<div class="qnr-form-row">
-					<label for="items_csv">CSV-Datei</label>
-					<input class="qnr-input" type="file" name="items_csv" id="items_csv" accept=".csv,text/csv" required>
-				</div>
-				<div class="qnr-form-row">
-					<label for="csv_import_mode">Import-Modus</label>
-					<select class="qnr-select" name="csv_import_mode" id="csv_import_mode">
-						<option value="create">Nur neue Items anlegen</option>
-						<option value="update">Bestehende per Item-Nr. aktualisieren</option>
-					</select>
-				</div>
-			</div>
-			<button class="qnr-btn qnr-focusable" type="submit" name="import_items_csv" value="1">CSV importieren</button>
-		</form>
+		<div class="qnr-inline-controls">
+			<button type="button" id="add-item" class="qnr-btn qnr-focusable">Item hinzufügen</button>
+		</div>
+		<div id="items-list" class="item-list" aria-live="polite"></div>
 	</section>
 
 	<section class="qnr-card">
@@ -441,24 +334,6 @@
 				</div>
 			</div>
 
-			<div class="qnr-form-row">
-				<label>Skalentyp</label>
-				<select class="qnr-select" name="scale_type" required>
-				<option value="likert">likert</option>
-				<option value="binary">binary</option>
-				<option value="custom">custom</option>
-				</select>
-			</div>
-
-			<div class="qnr-form-row">
-				<label>Likert-Min</label>
-				<input class="qnr-input" type="number" name="likert_min" value="1" required>
-			</div>
-
-			<div class="qnr-form-row">
-				<label>Likert-Max</label>
-				<input class="qnr-input" type="number" name="likert_max" value="5" required>
-			</div>
 			</div>
 
 			<div class="qnr-form-row">
@@ -468,14 +343,16 @@
 			</div>
 
 			<div class="qnr-form-row">
-				<label>Subskalen-Key</label>
-				<input class="qnr-input" type="text" name="subscale_key" maxlength="100">
+				<label>Subskala (optional)</label>
+				<input class="qnr-input" type="text" maxlength="100" data-field="subscale_key">
 			</div>
-
 			<div class="qnr-form-row-inline">
-				<label for="new_reverse">Reverse</label>
-				<input id="new_reverse" type="checkbox" name="is_reversed" value="1">
+				<label>Invertiert</label>
+				<input type="checkbox" value="1" data-field="is_reversed">
 			</div>
+		</div>
+	</article>
+</template>
 
 			<div class="qnr-form-row-inline">
 				<label for="new_required">Pflichtfeld</label>
@@ -518,24 +395,6 @@
 					<input class="qnr-input" type="number" name="item_no" min="1" value="<?php echo (int)$item['item_no']; ?>" required>
 				</div>
 
-				<div class="qnr-form-row">
-					<label>Skalentyp</label>
-					<select class="qnr-select" name="scale_type" required>
-					<?php foreach ($allowedScaleTypes as $scaleTypeOption) { ?>
-						<option value="<?php echo htmlentities($scaleTypeOption); ?>" <?php echo $item['scale_type'] === $scaleTypeOption ? 'selected' : ''; ?>><?php echo htmlentities($scaleTypeOption); ?></option>
-					<?php } ?>
-					</select>
-				</div>
-
-				<div class="qnr-form-row">
-					<label>Likert-Min</label>
-					<input class="qnr-input" type="number" name="likert_min" value="<?php echo (int)$item['likert_min']; ?>" required>
-				</div>
-
-				<div class="qnr-form-row">
-					<label>Likert-Max</label>
-					<input class="qnr-input" type="number" name="likert_max" value="<?php echo (int)$item['likert_max']; ?>" required>
-				</div>
 				</div>
 
 				<div class="qnr-form-row">
@@ -565,33 +424,34 @@
 	</section>
 </article>
 <style>
-	.qnr-card--accent {
-		border: 1px solid color-mix(in oklab, #1f6feb 35%, #ffffff);
-		background: linear-gradient(160deg, #f6f9ff 0%, #ffffff 70%);
+	.item-list {
+		display: grid;
+		gap: 12px;
+	}
+	.item-row__header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 10px;
+	}
+	.item-row__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
 	}
 	.qnr-inline-controls {
 		display: flex;
-		gap: 10px;
-		align-items: center;
-	}
-	.qnr-inline-controls .qnr-input {
-		flex: 1 1 auto;
-	}
-	#item_text_counter {
-		display: block;
-		margin-top: 6px;
-		opacity: 0.8;
+		justify-content: flex-end;
+		margin-bottom: 12px;
 	}
 </style>
+
 <script>
 	(function () {
 		var itemNoInput = document.getElementById('new_item_no');
 		var autoFillBtn = document.getElementById('autofill_item_no');
 		var textInput = document.getElementById('new_item_text');
 		var textCounter = document.getElementById('item_text_counter');
-		var scaleSelect = document.querySelector('#new-item-form select[name="scale_type"]');
-		var likertMinInput = document.querySelector('#new-item-form input[name="likert_min"]');
-		var likertMaxInput = document.querySelector('#new-item-form input[name="likert_max"]');
 
 		var knownNumbers = [<?php
 			$itemNumbers = array();
@@ -601,54 +461,151 @@
 			echo implode(',', $itemNumbers);
 		?>];
 
-		function findNextFreeItemNo() {
-			var used = {};
-			for (var i = 0; i < knownNumbers.length; i++) {
-				used[knownNumbers[i]] = true;
-			}
-			var current = 1;
-			while (used[current]) {
-				current++;
-			}
-			return current;
-		}
+	function setStatus(text, kind) {
+		saveStatus.textContent = text;
+		saveStatus.className = 'qnr-alert ' + (kind || 'qnr-alert--info');
+	}
 
-		function updateTextCounter() {
-			if (!textInput || !textCounter) {
-				return;
-			}
-			textCounter.textContent = textInput.value.length + ' Zeichen';
+	function setError(message) {
+		if (!message) {
+			errorBox.hidden = true;
+			errorBox.textContent = '';
+			return;
 		}
+		errorBox.hidden = false;
+		errorBox.textContent = message;
+	}
 
-		function applyScaleDefaults() {
-			if (!scaleSelect || !likertMinInput || !likertMaxInput) {
-				return;
-			}
-			if (scaleSelect.value === 'binary') {
-				likertMinInput.value = '0';
-				likertMaxInput.value = '1';
-			} else if (scaleSelect.value === 'likert' && (!likertMinInput.value || !likertMaxInput.value)) {
-				likertMinInput.value = '1';
-				likertMaxInput.value = '5';
-			}
-		}
-
-		if (autoFillBtn && itemNoInput) {
-			autoFillBtn.addEventListener('click', function () {
-				itemNoInput.value = findNextFreeItemNo();
-				itemNoInput.focus();
+	function postApi(payload) {
+		return fetch(apiUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'same-origin',
+			body: JSON.stringify(payload)
+		}).then(function (response) {
+			return response.json().then(function (data) {
+				if (!response.ok || !data.ok) {
+					throw new Error(data && data.error ? data.error : 'Unbekannter API-Fehler');
+				}
+				return data;
 			});
-		}
+		});
+	}
 
-		if (textInput) {
-			textInput.addEventListener('input', updateTextCounter);
-			updateTextCounter();
-		}
+	function normalizeItem(raw) {
+		return {
+			id: raw.id ? Number(raw.id) : null,
+			client_id: raw.client_id || nextClientId(),
+			item_no: raw.item_no ? Number(raw.item_no) : 0,
+			item_text: raw.item_text || '',
+			subscale_key: raw.subscale_key || '',
+			is_reversed: Number(raw.is_reversed) === 1 ? 1 : 0
+		};
+	}
 
-		if (scaleSelect) {
-			scaleSelect.addEventListener('change', applyScaleDefaults);
-			applyScaleDefaults();
+	function scheduleSave() {
+		pendingSave = true;
+		setStatus('Ungespeicherte Änderungen …', 'qnr-alert--info');
+		if (saveTimer) {
+			clearTimeout(saveTimer);
 		}
+		saveTimer = setTimeout(function () {
+			saveAllChanges();
+		}, 1200);
+	}
+
+
+		items.forEach(function (item, index) {
+			var fragment = template.content.cloneNode(true);
+			var row = fragment.querySelector('.item-row');
+			row.dataset.index = index;
+			row.querySelector('.item-row__index').textContent = 'Item #' + (index + 1);
+
+			var textEl = row.querySelector('[data-field="item_text"]');
+			textEl.value = item.item_text;
+			textEl.addEventListener('input', function () {
+				items[index].item_text = textEl.value;
+				scheduleSave();
+			});
+
+			var subscaleEl = row.querySelector('[data-field="subscale_key"]');
+			subscaleEl.value = item.subscale_key;
+			subscaleEl.addEventListener('input', function () {
+				items[index].subscale_key = subscaleEl.value;
+				scheduleSave();
+			});
+
+			var reversedEl = row.querySelector('[data-field="is_reversed"]');
+			reversedEl.checked = item.is_reversed === 1;
+			reversedEl.addEventListener('change', function () {
+				items[index].is_reversed = reversedEl.checked ? 1 : 0;
+				scheduleSave();
+			});
+
+			row.querySelector('[data-action="clone"]').addEventListener('click', function () {
+				var copy = normalizeItem(item);
+				copy.id = null;
+				copy.client_id = nextClientId();
+				items.splice(index + 1, 0, copy);
+				render();
+				scheduleSave();
+			});
+
+			row.querySelector('[data-action="delete"]').addEventListener('click', function () {
+				deleteItem(index);
+			});
+
+			row.querySelector('[data-action="move_up"]').addEventListener('click', function () {
+				if (index === 0) {
+					return;
+				}
+				var moved = items.splice(index, 1)[0];
+				items.splice(index - 1, 0, moved);
+				render();
+				scheduleSave();
+			});
+
+			row.querySelector('[data-action="move_down"]').addEventListener('click', function () {
+				if (index >= items.length - 1) {
+					return;
+				}
+				var moved = items.splice(index, 1)[0];
+				items.splice(index + 1, 0, moved);
+				render();
+				scheduleSave();
+			});
+
+			listEl.appendChild(fragment);
+		});
+	}
+
+	function deleteItem(index) {
+		var item = items[index];
+		if (!item) {
+			return;
+		}
+		if (item.id) {
+			setStatus('Lösche Item …', 'qnr-alert--info');
+			postApi({
+				action: 'delete',
+				questionnaire_id: questionnaireId,
+				csrf_token: csrfToken,
+				item_id: item.id
+			}).then(function () {
+				items.splice(index, 1);
+				render();
+				scheduleSave();
+			}).catch(function (error) {
+				setError(error.message);
+				setStatus('Speichern fehlgeschlagen', 'qnr-alert--error');
+			});
+		} else {
+			items.splice(index, 1);
+			render();
+			scheduleSave();
+		}
+	}
+
 	})();
 </script>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php'); ?>
