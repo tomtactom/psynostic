@@ -1,8 +1,9 @@
 <?php
-	$show_only_user = 'supporter';
-	$title = 'Normtabellen-Import';
-	$description = 'CSV-Upload für Normtabellen mit Validierung und Fehleranzeige.';
-	$keywords = 'normtabellen,csv,import';
+	$show_only_user = 'min_manager';
+	$title = 'Normtabellen';
+	$description = 'Verwalte Normtabellen im Backend und importiere CSV-Dateien mit Validierung.';
+	$keywords = 'normtabellen, backend, verwaltung, csv, import';
+
 	require_once($_SERVER['DOCUMENT_ROOT'].'/include/backend/head.inc.php');
 	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/header.inc.php');
 
@@ -79,6 +80,7 @@
 	if (isset($_GET['download_template']) && $_GET['download_template'] === '1') {
 		header('Content-Type: text/csv; charset=utf-8');
 		header('Content-Disposition: attachment; filename="normtables-template-v1.csv"');
+
 		$output = fopen('php://output', 'w');
 		fputcsv($output, NORMTABLE_REQUIRED_COLUMNS);
 		fputcsv($output, array('1', 'gruppe_a', 'score_gesamt', '0', '9', '15', '10', 'Niedrig'));
@@ -97,15 +99,18 @@
 				$importSummary[] = $fileValidationError;
 			} else {
 				$handle = fopen($_FILES['normtable_csv']['tmp_name'], 'r');
+
 				if ($handle === false) {
 					$importSummary[] = 'CSV-Datei konnte nicht gelesen werden.';
 				} else {
 					$header = fgetcsv($handle);
+
 					if ($header === false) {
 						$importSummary[] = 'CSV-Datei ist leer.';
 					} else {
 						$header = normalizeHeader($header);
 						$missingColumns = array_diff(NORMTABLE_REQUIRED_COLUMNS, $header);
+
 						if (!empty($missingColumns)) {
 							$importSummary[] = 'Pflichtspalten fehlen: '.implode(', ', $missingColumns);
 						} else {
@@ -114,6 +119,7 @@
 
 							while (($row = fgetcsv($handle)) !== false) {
 								$rowNumber++;
+
 								if ($row === array(null) || (count($row) === 1 && trim((string)$row[0]) === '')) {
 									continue;
 								}
@@ -145,6 +151,7 @@
 								if ($hasRawBoundaries) {
 									$rawMin = (float)$mappedRow['raw_min'];
 									$rawMax = (float)$mappedRow['raw_max'];
+
 									if ($rawMin > $rawMax) {
 										addRowError($importErrors, $rowNumber, 'Intervallfehler: raw_min ist größer als raw_max.');
 									}
@@ -156,14 +163,17 @@
 
 								if (!isset($importErrors[$rowNumber]) && $hasRawBoundaries) {
 									$bucketKey = $mappedRow['group_key'].'||'.$mappedRow['score_key'];
+
 									if (!isset($intervalsByGroupScore[$bucketKey])) {
 										$intervalsByGroupScore[$bucketKey] = array();
 									}
+
 									$intervalsByGroupScore[$bucketKey][] = array(
 										'row' => $rowNumber,
 										'raw_min' => (float)$mappedRow['raw_min'],
 										'raw_max' => (float)$mappedRow['raw_max']
 									);
+
 									$uploadedRows[] = $mappedRow;
 								}
 							}
@@ -196,6 +206,7 @@
 							}
 						}
 					}
+
 					fclose($handle);
 				}
 			}
@@ -203,6 +214,10 @@
 	}
 ?>
 <article>
+	<section>
+		<?php questionnaire_show_backend_overview('Normtabellen', 'Übersicht über verfügbare Normtabellen, deren Pflege und CSV-Import.'); ?>
+	</section>
+
 	<section>
 		<h1>Normtabellen per CSV importieren</h1>
 		<p>
