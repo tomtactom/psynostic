@@ -1,0 +1,189 @@
+/*
+	############# - INFO - #############
+*/
+$name: lupusnova;
+$author: Codex;
+$version: 1.0;
+$description: Futuristisches, responsives LupusGUI Backend Design mit Glassmorphism und klarer Informationshierarchie.
+
+* { box-sizing: border-box; }
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+	font-family: 'Inter', system-ui, -apple-system, sans-serif;
+	background: radial-gradient(circle at top left, #1f2a44 0%, #0c1120 45%, #070b14 100%);
+	color: #e9eefc;
+	min-height: 100%;
+}
+
+body {
+	padding: 1.2rem;
+}
+
+header,
+footer,
+blockquote,
+.message,
+table,
+form {
+	background: linear-gradient(140deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+	backdrop-filter: blur(10px);
+	border: 1px solid rgba(255,255,255,0.16);
+	border-radius: 14px;
+	box-shadow: 0 20px 45px rgba(0, 0, 0, 0.32);
+}
+
+header,
+footer {
+	padding: 1rem 1.2rem;
+	margin-bottom: 1rem;
+}
+
+.brand-wrap {
+	display: flex;
+	align-items: center;
+	gap: .9rem;
+}
+
+.brand-wrap strong {
+	display: block;
+	font-size: 1.05rem;
+	letter-spacing: .02em;
+}
+
+.brand-wrap p {
+	margin: 0;
+	opacity: .82;
+	font-size: .88rem;
+}
+
+header nav ul,
+footer ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: .55rem;
+	list-style: none;
+	padding: 0;
+	margin: .9rem 0 0;
+}
+
+header nav li a,
+footer li a,
+a {
+	display: inline-flex;
+	align-items: center;
+	padding: .55rem .85rem;
+	text-decoration: none;
+	border-radius: 999px;
+	color: #f4f7ff;
+	background: rgba(116, 164, 255, 0.18);
+	border: 1px solid rgba(116, 164, 255, 0.48);
+	transition: .2s ease;
+}
+
+header nav li a:hover,
+footer li a:hover,
+a:hover {
+	transform: translateY(-1px);
+	background: rgba(116, 164, 255, 0.28);
+}
+
+blockquote,
+form,
+.message {
+	margin: 0 auto 1rem;
+	padding: 1rem;
+	max-width: 1100px;
+}
+
+.message {
+	border-left: 4px solid #80ffdb;
+}
+
+label {
+	display: block;
+	margin-bottom: .75rem;
+	font-weight: 500;
+}
+
+input[type=text],
+input[type=textarea],
+input[type=search],
+input[type=password],
+input[type=tel],
+input[type=url],
+input[type=email],
+input[type=image],
+input[type=number],
+input[type=date],
+input[type=datetime-local],
+input[type=week],
+input[type=time],
+input[type=file],
+input[type=month],
+select,
+textarea {
+	width: 100%;
+	margin-top: .45rem;
+	padding: .75rem .85rem;
+	border-radius: 10px;
+	border: 1px solid rgba(255,255,255,0.22);
+	background: rgba(4, 8, 20, 0.56);
+	color: #ffffff;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 2px solid rgba(116, 164, 255, 0.7);
+	border-color: transparent;
+}
+
+button,
+input[type=button],
+input[type=submit],
+input[type=reset] {
+	padding: .72rem 1rem;
+	border: none;
+	border-radius: 10px;
+	font-weight: 700;
+	cursor: pointer;
+	color: #071021;
+	background: linear-gradient(135deg, #80ffdb, #74a4ff);
+	transition: transform .15s ease;
+}
+
+button:hover,
+input[type=submit]:hover,
+input[type=button]:hover,
+input[type=reset]:hover {
+	transform: translateY(-1px);
+}
+
+table {
+	width: 100%;
+	overflow: hidden;
+	margin: 0 auto 1rem;
+}
+
+table thead th {
+	text-align: left;
+	padding: .75rem;
+	background: rgba(128, 255, 219, 0.22);
+}
+
+table tbody td {
+	padding: .65rem .75rem;
+	border-top: 1px solid rgba(255,255,255,0.14);
+}
+
+@media (max-width: 800px) {
+	body { padding: .75rem; }
+	header nav ul,
+	footer ul { gap: .35rem; }
+	header nav li a,
+	footer li a,
+	a { padding: .48rem .7rem; font-size: .9rem; }
+}
