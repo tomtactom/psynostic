@@ -9,7 +9,7 @@
 	}
 
 	// Liest `option` Daten aus der Datenbank aus
-	$result = $db->query("SELECT option_name, option_value FROM option");
+	$result = $db->query("SELECT option_name, option_value, updated_at FROM `option`");
 	$options = [];
 	$options_time = [];
 	while ($row = $result->fetch_assoc()) {
