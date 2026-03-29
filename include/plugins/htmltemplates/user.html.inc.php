@@ -35,7 +35,7 @@
 
 	<label for="inputGender">Geschlecht: 
 		<select name="gender" id="inputGender">
-			<option value="female" <?php echo $gender_femal_select; ?>>Weiblich</option>
+			<option value="female" <?php echo $gender_female_select; ?>>Weiblich</option>
 			<option value="male" <?php echo $gender_male_select; ?>>Männlich</option>
 			<option value="other" <?php echo $gender_other_select; ?>>Anders</option>
 			<option value="noinformation" <?php echo $gender_noinformation_select; ?>>Keine Angabe</option>
