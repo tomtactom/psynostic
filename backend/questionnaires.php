@@ -1,7 +1,7 @@
 <?php
 	$show_only_user = 'min_manager';
-	$title = 'Fragebögen';
-	$description = 'Verwalte Fragebögen im Backend';
+	$title = 'Fragebögen – Übersicht';
+	$description = 'Übersicht und Verwaltung der Fragebögen im Backend';
 	$keywords = 'fragebogen, backend, verwaltung';
 	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/head.inc.php');
 	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/header.inc.php');
@@ -120,7 +120,7 @@
 ?>
 <main class="qnr-layout qnr-layout--backend">
 	<section class="qnr-card">
-		<?php questionnaire_show_backend_overview('Fragebögen', 'Fragebögen erstellen, bearbeiten und aktivieren/deaktivieren.'); ?>
+		<?php questionnaire_show_backend_overview('Fragebögen – Übersicht', 'Fragebögen erstellen, bearbeiten und aktivieren/deaktivieren.'); ?>
 	</section>
 
 	<section class="qnr-card" aria-labelledby="create-questionnaire-heading">
