@@ -8,13 +8,19 @@
             <nav>
                 <section>
                     <?php
-						include dirname(__DIR__, 2) . '/menu_left.inc.php';
+						$menuLeftFile = dirname(__DIR__, 2) . '/menu_left.inc.php';
+					if (is_file($menuLeftFile)) {
+						include $menuLeftFile;
+					}
 					?>
                 </section>
                 <section>
                     <ul>
                         <?php
-							include dirname(__DIR__, 2) . '/menu_right.inc.php';
+							$menuRightFile = dirname(__DIR__, 2) . '/menu_right.inc.php';
+							if (is_file($menuRightFile)) {
+								include $menuRightFile;
+							}
 						?>
                     </ul>
                 </section>
