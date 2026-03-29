@@ -4,6 +4,28 @@
 	$description = 'Verwalte Normtabellen im Backend und importiere CSV-Dateien mit Validierung.';
 	$keywords = 'normtabellen, backend, verwaltung, csv, import';
 
+	if (isset($_GET['download_template']) && $_GET['download_template'] === '1') {
+		header('Content-Type: text/csv; charset=utf-8');
+		header('Content-Disposition: attachment; filename="normtables-template-v1.csv"');
+
+		$output = fopen('php://output', 'w');
+		fputcsv($output, array(
+			'csv_schema_version',
+			'group_key',
+			'score_key',
+			'raw_min',
+			'raw_max',
+			'norm_value',
+			'percentile',
+			'norm_label'
+		));
+		fputcsv($output, array('1', 'gruppe_a', 'score_gesamt', '0', '9', '15', '10', 'Niedrig'));
+		fputcsv($output, array('1', 'gruppe_a', 'score_gesamt', '10', '19', '35', '25', 'Unterer Durchschnitt'));
+		fputcsv($output, array('1', 'gruppe_a', 'score_gesamt', '20', '30', '55', '50', 'Durchschnitt'));
+		fclose($output);
+		exit;
+	}
+
 	require_once($_SERVER['DOCUMENT_ROOT'].'/include/backend/head.inc.php');
 	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/header.inc.php');
 
@@ -86,20 +108,6 @@
 	$importSummary = array();
 	$uploadedRows = array();
 	$uploadAttempted = false;
-
-	if (isset($_GET['download_template']) && $_GET['download_template'] === '1') {
-		header('Content-Type: text/csv; charset=utf-8');
-		header('Content-Disposition: attachment; filename="normtables-template-v1.csv"');
-
-		$output = fopen('php://output', 'w');
-		fputcsv($output, NORMTABLE_REQUIRED_COLUMNS);
-		fputcsv($output, array('1', 'gruppe_a', 'score_gesamt', '0', '9', '15', '10', 'Niedrig'));
-		fputcsv($output, array('1', 'gruppe_a', 'score_gesamt', '10', '19', '35', '25', 'Unterer Durchschnitt'));
-		fputcsv($output, array('1', 'gruppe_a', 'score_gesamt', '20', '30', '55', '50', 'Durchschnitt'));
-		fclose($output);
-		exit;
-	}
-
 	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_normtable_csv'])) {
 		$uploadAttempted = true;
 		if (!isset($_FILES['normtable_csv']) || (int)$_FILES['normtable_csv']['error'] !== UPLOAD_ERR_OK) {

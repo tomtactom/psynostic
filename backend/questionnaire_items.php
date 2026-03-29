@@ -3,13 +3,30 @@
 	$title = 'Fragebogen-Items';
 	$description = 'Items eines Fragebogens verwalten';
 	$keywords = 'fragebogen, items, backend';
-	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/head.inc.php');
-	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/header.inc.php');
-
 	$questionnaireId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 	$errors = array();
 	$messages = array();
 	$allowedScaleTypes = array('likert', 'binary', 'custom');
+	$itemCsvColumns = array('item_no', 'item_text', 'scale_type', 'likert_min', 'likert_max', 'is_reversed', 'subscale_key', 'is_required');
+
+	function questionnaireItemsDownloadTemplate(array $columns)
+	{
+		header('Content-Type: text/csv; charset=utf-8');
+		header('Content-Disposition: attachment; filename="questionnaire-items-template-v1.csv"');
+		$output = fopen('php://output', 'w');
+		fputcsv($output, $columns);
+		fputcsv($output, array('1', 'Ich fühle mich heute ausgeglichen.', 'likert', '1', '5', '0', 'wohlbefinden', '1'));
+		fputcsv($output, array('2', 'Ich habe in letzter Zeit schlecht geschlafen.', 'likert', '1', '5', '1', 'stress', '1'));
+		fclose($output);
+		exit;
+	}
+
+	if (isset($_GET['download_items_template']) && $_GET['download_items_template'] === '1') {
+		questionnaireItemsDownloadTemplate($itemCsvColumns);
+	}
+
+	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/head.inc.php');
+	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/header.inc.php');
 
 	function renderAlerts(array $errors, array $messages)
 	{
@@ -79,6 +96,38 @@
 		return $validationErrors;
 	}
 
+	function normalizeCsvHeader(array $headerRow)
+	{
+		$header = array();
+		foreach ($headerRow as $columnName) {
+			$header[] = trim((string)$columnName);
+		}
+		return $header;
+	}
+
+	function csvRowToItemPayload(array $csvRow, array $headerMap)
+	{
+		$payload = array(
+			'item_id' => 0,
+			'item_no' => 0,
+			'item_text' => '',
+			'scale_type' => 'likert',
+			'likert_min' => 1,
+			'likert_max' => 5,
+			'is_reversed' => 0,
+			'subscale_key' => '',
+			'is_required' => 1
+		);
+
+		foreach ($headerMap as $index => $columnName) {
+			$payload[$columnName] = isset($csvRow[$index]) ? trim((string)$csvRow[$index]) : '';
+		}
+
+		$payload['is_reversed'] = ($payload['is_reversed'] === '1' || strtolower((string)$payload['is_reversed']) === 'true') ? '1' : '0';
+		$payload['is_required'] = ($payload['is_required'] === '0' || strtolower((string)$payload['is_required']) === 'false') ? '0' : '1';
+		return $payload;
+	}
+
 	if ($questionnaireId <= 0) {
 		die('<p>Ungültige Fragebogen-ID.</p>');
 	}
@@ -88,6 +137,99 @@
 	$questionnaire = $questionnaireStmt->fetch(PDO::FETCH_ASSOC);
 	if (!$questionnaire) {
 		die('<p>Fragebogen nicht gefunden.</p>');
+	}
+
+	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_items_csv'])) {
+		if (!isset($_FILES['items_csv']) || (int)$_FILES['items_csv']['error'] !== UPLOAD_ERR_OK) {
+			$errors[] = 'CSV-Datei konnte nicht hochgeladen werden.';
+		} else {
+			$extension = strtolower(pathinfo((string)$_FILES['items_csv']['name'], PATHINFO_EXTENSION));
+			if ($extension !== 'csv') {
+				$errors[] = 'Bitte eine CSV-Datei mit Endung .csv hochladen.';
+			} else {
+				$handle = fopen($_FILES['items_csv']['tmp_name'], 'r');
+				if ($handle === false) {
+					$errors[] = 'CSV-Datei konnte nicht gelesen werden.';
+				} else {
+					$header = fgetcsv($handle);
+					if ($header === false) {
+						$errors[] = 'CSV-Datei ist leer.';
+					} else {
+						$header = normalizeCsvHeader($header);
+						$missingColumns = array_diff($itemCsvColumns, $header);
+						if (!empty($missingColumns)) {
+							$errors[] = 'CSV enthält nicht alle Pflichtspalten: '.implode(', ', $missingColumns);
+						} else {
+							$rowNumber = 1;
+							$createdCount = 0;
+							$updatedCount = 0;
+							$importMode = isset($_POST['csv_import_mode']) && $_POST['csv_import_mode'] === 'update' ? 'update' : 'create';
+
+							while (($row = fgetcsv($handle)) !== false) {
+								$rowNumber++;
+								if ($row === array(null) || (count($row) === 1 && trim((string)$row[0]) === '')) {
+									continue;
+								}
+
+								$itemPayload = csvRowToItemPayload($row, $header);
+								$itemData = array();
+								$rowErrors = validateItemInput($itemPayload, $allowedScaleTypes, $itemData);
+								if (!empty($rowErrors)) {
+									foreach ($rowErrors as $rowError) {
+										$errors[] = 'CSV Zeile '.$rowNumber.': '.$rowError;
+									}
+									continue;
+								}
+
+								$existingByNumberStmt = $pdo->prepare('SELECT id FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id AND item_no = :item_no LIMIT 1');
+								$existingByNumberStmt->execute(array(':questionnaire_id' => $questionnaireId, ':item_no' => $itemData['item_no']));
+								$existingItemId = (int)$existingByNumberStmt->fetchColumn();
+
+								if ($existingItemId > 0 && $importMode === 'create') {
+									$errors[] = 'CSV Zeile '.$rowNumber.': Item-Nummer '.$itemData['item_no'].' existiert bereits. Nutze Modus "Bestehende aktualisieren".';
+									continue;
+								}
+
+								if ($existingItemId > 0 && $importMode === 'update') {
+									$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_text = :item_text, scale_type = :scale_type, likert_min = :likert_min, likert_max = :likert_max, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
+									$updateStmt->execute(array(
+										':item_text' => $itemData['item_text'],
+										':scale_type' => $itemData['scale_type'],
+										':likert_min' => $itemData['likert_min'],
+										':likert_max' => $itemData['likert_max'],
+										':is_reversed' => $itemData['is_reversed'],
+										':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
+										':is_required' => $itemData['is_required'],
+										':id' => $existingItemId,
+										':questionnaire_id' => $questionnaireId
+									));
+									$updatedCount++;
+								} else {
+									$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :scale_type, :likert_min, :likert_max, :is_reversed, :subscale_key, :is_required)');
+									$insertStmt->execute(array(
+										':questionnaire_id' => $questionnaireId,
+										':item_no' => $itemData['item_no'],
+										':item_text' => $itemData['item_text'],
+										':scale_type' => $itemData['scale_type'],
+										':likert_min' => $itemData['likert_min'],
+										':likert_max' => $itemData['likert_max'],
+										':is_reversed' => $itemData['is_reversed'],
+										':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
+										':is_required' => $itemData['is_required']
+									));
+									$createdCount++;
+								}
+							}
+
+							if (empty($errors)) {
+								$messages[] = 'CSV-Import erfolgreich: '.$createdCount.' neu, '.$updatedCount.' aktualisiert.';
+							}
+						}
+					}
+					fclose($handle);
+				}
+			}
+		}
 	}
 
 	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['bulk_action'])) {
@@ -252,14 +394,51 @@
 		<p><strong>Fragebogen:</strong> <?php echo htmlentities($questionnaire['title']); ?> (<?php echo htmlentities($questionnaire['slug']); ?>)</p>
 	</section>
 
+	<section class="qnr-card qnr-card--accent">
+		<h2>Schnellstart</h2>
+		<ul>
+			<li>Für manuelle Eingabe: Mit <em>„Nächste freie Nummer“</em> wird die Item-Nr. automatisch gesetzt.</li>
+			<li>Für viele Items: CSV-Vorlage herunterladen, in Excel/LibreOffice ausfüllen und importieren.</li>
+			<li>Bei CSV-Import kann optional über Item-Nr. aktualisiert werden.</li>
+		</ul>
+		<form action="" method="get" class="qnr-inline-form">
+			<input type="hidden" name="id" value="<?php echo (int)$questionnaireId; ?>">
+			<input type="hidden" name="download_items_template" value="1">
+			<button class="qnr-btn qnr-btn--secondary qnr-focusable" type="submit">CSV-Vorlage herunterladen</button>
+		</form>
+	</section>
+
+	<section class="qnr-card">
+		<h2>Items per CSV importieren</h2>
+		<form action="" method="post" enctype="multipart/form-data">
+			<div class="qnr-grid qnr-grid--2">
+				<div class="qnr-form-row">
+					<label for="items_csv">CSV-Datei</label>
+					<input class="qnr-input" type="file" name="items_csv" id="items_csv" accept=".csv,text/csv" required>
+				</div>
+				<div class="qnr-form-row">
+					<label for="csv_import_mode">Import-Modus</label>
+					<select class="qnr-select" name="csv_import_mode" id="csv_import_mode">
+						<option value="create">Nur neue Items anlegen</option>
+						<option value="update">Bestehende per Item-Nr. aktualisieren</option>
+					</select>
+				</div>
+			</div>
+			<button class="qnr-btn qnr-focusable" type="submit" name="import_items_csv" value="1">CSV importieren</button>
+		</form>
+	</section>
+
 	<section class="qnr-card">
 		<h2>Neues Item</h2>
-		<form action="" method="post">
+		<form action="" method="post" id="new-item-form">
 			<input type="hidden" name="item_id" value="0">
 			<div class="qnr-grid qnr-grid--2">
 			<div class="qnr-form-row">
 				<label>Item-Nr.</label>
-				<input class="qnr-input" type="number" name="item_no" min="1" required>
+				<div class="qnr-inline-controls">
+					<input class="qnr-input" type="number" name="item_no" id="new_item_no" min="1" required>
+					<button type="button" class="qnr-btn qnr-btn--secondary qnr-focusable" id="autofill_item_no">Nächste freie Nummer</button>
+				</div>
 			</div>
 
 			<div class="qnr-form-row">
@@ -273,18 +452,19 @@
 
 			<div class="qnr-form-row">
 				<label>Likert-Min</label>
-				<input class="qnr-input" type="number" name="likert_min" required>
+				<input class="qnr-input" type="number" name="likert_min" value="1" required>
 			</div>
 
 			<div class="qnr-form-row">
 				<label>Likert-Max</label>
-				<input class="qnr-input" type="number" name="likert_max" required>
+				<input class="qnr-input" type="number" name="likert_max" value="5" required>
 			</div>
 			</div>
 
 			<div class="qnr-form-row">
 				<label>Itemtext</label>
-				<textarea class="qnr-textarea" name="item_text" rows="4" required></textarea>
+				<textarea class="qnr-textarea" name="item_text" id="new_item_text" rows="4" required></textarea>
+				<small id="item_text_counter">0 Zeichen</small>
 			</div>
 
 			<div class="qnr-form-row">
@@ -384,4 +564,91 @@
 		<?php } ?>
 	</section>
 </article>
+<style>
+	.qnr-card--accent {
+		border: 1px solid color-mix(in oklab, #1f6feb 35%, #ffffff);
+		background: linear-gradient(160deg, #f6f9ff 0%, #ffffff 70%);
+	}
+	.qnr-inline-controls {
+		display: flex;
+		gap: 10px;
+		align-items: center;
+	}
+	.qnr-inline-controls .qnr-input {
+		flex: 1 1 auto;
+	}
+	#item_text_counter {
+		display: block;
+		margin-top: 6px;
+		opacity: 0.8;
+	}
+</style>
+<script>
+	(function () {
+		var itemNoInput = document.getElementById('new_item_no');
+		var autoFillBtn = document.getElementById('autofill_item_no');
+		var textInput = document.getElementById('new_item_text');
+		var textCounter = document.getElementById('item_text_counter');
+		var scaleSelect = document.querySelector('#new-item-form select[name="scale_type"]');
+		var likertMinInput = document.querySelector('#new-item-form input[name="likert_min"]');
+		var likertMaxInput = document.querySelector('#new-item-form input[name="likert_max"]');
+
+		var knownNumbers = [<?php
+			$itemNumbers = array();
+			foreach ($items as $existingItem) {
+				$itemNumbers[] = (int)$existingItem['item_no'];
+			}
+			echo implode(',', $itemNumbers);
+		?>];
+
+		function findNextFreeItemNo() {
+			var used = {};
+			for (var i = 0; i < knownNumbers.length; i++) {
+				used[knownNumbers[i]] = true;
+			}
+			var current = 1;
+			while (used[current]) {
+				current++;
+			}
+			return current;
+		}
+
+		function updateTextCounter() {
+			if (!textInput || !textCounter) {
+				return;
+			}
+			textCounter.textContent = textInput.value.length + ' Zeichen';
+		}
+
+		function applyScaleDefaults() {
+			if (!scaleSelect || !likertMinInput || !likertMaxInput) {
+				return;
+			}
+			if (scaleSelect.value === 'binary') {
+				likertMinInput.value = '0';
+				likertMaxInput.value = '1';
+			} else if (scaleSelect.value === 'likert' && (!likertMinInput.value || !likertMaxInput.value)) {
+				likertMinInput.value = '1';
+				likertMaxInput.value = '5';
+			}
+		}
+
+		if (autoFillBtn && itemNoInput) {
+			autoFillBtn.addEventListener('click', function () {
+				itemNoInput.value = findNextFreeItemNo();
+				itemNoInput.focus();
+			});
+		}
+
+		if (textInput) {
+			textInput.addEventListener('input', updateTextCounter);
+			updateTextCounter();
+		}
+
+		if (scaleSelect) {
+			scaleSelect.addEventListener('change', applyScaleDefaults);
+			applyScaleDefaults();
+		}
+	})();
+</script>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php'); ?>
