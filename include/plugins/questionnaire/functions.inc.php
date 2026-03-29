@@ -755,6 +755,7 @@ function questionnaire_show_frontend($view = 'overview') {
 	echo '</form></section></main>';
 	questionnaireRenderFrontendValidationScript();
 	questionnaireRenderFrontendFocusScript();
+	questionnaireRenderFrontendItemsEnhancementScript();
 }
 
 function questionnaireRenderFrontendFocusScript() {
@@ -1133,7 +1134,27 @@ function questionnaireRenderItems(array $items, array $values, array $errorsByIt
 		echo '<p>Für diesen Fragebogen sind keine Items konfiguriert.</p>';
 		return;
 	}
+	$firstItem = reset($items);
+	$globalMin = isset($firstItem['likert_min']) ? (int)$firstItem['likert_min'] : null;
+	$globalMax = isset($firstItem['likert_max']) ? (int)$firstItem['likert_max'] : null;
+	$isUniformScale = $globalMin !== null && $globalMax !== null;
+	foreach ($items as $item) {
+		if ((int)$item['likert_min'] !== $globalMin || (int)$item['likert_max'] !== $globalMax) {
+			$isUniformScale = false;
+			break;
+		}
+	}
+
 	echo '<p class="required-note"><span class="required-marker" aria-hidden="true">*</span> Pflichtfeld (muss beantwortet werden)</p>';
+	echo '<section class="qnr-items-header'.($isUniformScale ? ' qnr-items-header--sticky' : '').'" aria-labelledby="qnr-items-header-title">';
+	echo '<h3 id="qnr-items-header-title">Hinweis zur Beantwortung</h3>';
+	if ($isUniformScale) {
+		echo '<p>Bitte beantworte jedes Item auf der Skala von '.$globalMin.' bis '.$globalMax.'. ';
+		echo '<strong>'.$globalMin.' = trifft gar nicht zu</strong>, <strong>'.$globalMax.' = trifft völlig zu</strong>.</p>';
+	} else {
+		echo '<p>Bitte beantworte jedes Item gemäß der jeweiligen Skala. Die Skalenanker lauten links <strong>trifft gar nicht zu</strong> und rechts <strong>trifft völlig zu</strong>.</p>';
+	}
+	echo '</section>';
 	echo '<div class="form-group">';
 	foreach ($items as $item) {
 		$itemId = (int)$item['id'];
@@ -1145,13 +1166,17 @@ function questionnaireRenderItems(array $items, array $values, array $errorsByIt
 		$hintId = 'item_'.$itemId.'_hint';
 		$errorId = 'item_'.$itemId.'_error';
 		$fieldError = isset($errorsByItemId[$itemId]['message']) ? (string)$errorsByItemId[$itemId]['message'] : '';
-		echo '<fieldset class="qnr-form-row form-field" id="item_'.$itemId.'">';
+		echo '<fieldset class="qnr-form-row form-field qnr-item-card" id="item_'.$itemId.'" data-item-id="'.$itemId.'">';
 		echo '<legend id="'.$legendId.'">'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' <span class="required-marker" aria-hidden="true">*</span><span class="required-text"> Pflichtfeld</span>' : '').'</legend>';
-		echo '<p class="field-hint" id="'.$hintId.'">Bitte einen Wert von '.$min.' bis '.$max.' auswählen.</p>';
+		if (!$isUniformScale) {
+			echo '<p class="field-hint" id="'.$hintId.'">Skala '.$min.' bis '.$max.'.</p>';
+		} else {
+			echo '<p class="field-hint sr-only" id="'.$hintId.'">Skala '.$min.' bis '.$max.'.</p>';
+		}
 		echo '<div class="likert-scale">';
 		echo '<span class="likert-anchor likert-anchor-left">trifft gar nicht zu</span>';
 		$describedBy = $hintId.($fieldError !== '' ? ' '.$errorId : '');
-		echo '<div class="radio-group" role="radiogroup" aria-labelledby="'.$legendId.'" aria-describedby="'.$describedBy.'">';
+		echo '<div class="radio-group" role="radiogroup" aria-labelledby="'.$legendId.'" aria-describedby="'.$describedBy.'" data-item-id="'.$itemId.'">';
 		for ($value = $min; $value <= $max; $value++) {
 			$checked = ($current !== '' && (int)$current === $value) ? 'checked' : '';
 			$radioId = 'item_'.$itemId.'_value_'.$value;
@@ -1165,6 +1190,54 @@ function questionnaireRenderItems(array $items, array $values, array $errorsByIt
 		echo '</fieldset>';
 	}
 	echo '</div>';
+}
+
+function questionnaireRenderFrontendItemsEnhancementScript() {
+	echo '<script>';
+	echo '(function () {';
+	echo 'var groups = document.querySelectorAll(".radio-group[role=\'radiogroup\']");';
+	echo 'if (!groups.length) { return; }';
+	echo 'var updateLastAnswered = function (radio) {';
+	echo 'if (!radio) { return; }';
+	echo 'var card = radio.closest(".qnr-item-card");';
+	echo 'if (!card) { return; }';
+	echo 'document.querySelectorAll(".qnr-item-card.is-last-answered").forEach(function (node) { node.classList.remove("is-last-answered"); });';
+	echo 'card.classList.add("is-last-answered");';
+	echo 'if (window.sessionStorage) { sessionStorage.setItem("qnr_last_answered_item", card.id || ""); }';
+	echo '};';
+	echo 'var restoreLastAnswered = function () {';
+	echo 'if (!window.sessionStorage) { return; }';
+	echo 'var itemId = sessionStorage.getItem("qnr_last_answered_item");';
+	echo 'if (!itemId) { return; }';
+	echo 'var card = document.getElementById(itemId);';
+	echo 'if (card && card.classList.contains("qnr-item-card")) { card.classList.add("is-last-answered"); }';
+	echo '};';
+	echo 'var moveFocus = function (radios, currentIndex, direction) {';
+	echo 'if (!radios.length) { return; }';
+	echo 'var nextIndex = (currentIndex + direction + radios.length) % radios.length;';
+	echo 'radios[nextIndex].checked = true;';
+	echo 'radios[nextIndex].focus();';
+	echo 'radios[nextIndex].dispatchEvent(new Event("input", { bubbles: true }));';
+	echo 'radios[nextIndex].dispatchEvent(new Event("change", { bubbles: true }));';
+	echo '};';
+	echo 'groups.forEach(function (group) {';
+	echo 'var radios = Array.prototype.slice.call(group.querySelectorAll(\'input[type="radio"]\'));';
+	echo 'if (!radios.length) { return; }';
+	echo 'group.addEventListener("keydown", function (event) {';
+	echo 'var target = event.target;';
+	echo 'if (!target || target.type !== "radio") { return; }';
+	echo 'var index = radios.indexOf(target);';
+	echo 'if (index < 0) { return; }';
+	echo 'if (event.key === "ArrowRight" || event.key === "ArrowDown") { event.preventDefault(); moveFocus(radios, index, 1); }';
+	echo 'if (event.key === "ArrowLeft" || event.key === "ArrowUp") { event.preventDefault(); moveFocus(radios, index, -1); }';
+	echo 'if (event.key === "Home") { event.preventDefault(); radios[0].checked = true; radios[0].focus(); radios[0].dispatchEvent(new Event("change", { bubbles: true })); }';
+	echo 'if (event.key === "End") { event.preventDefault(); radios[radios.length - 1].checked = true; radios[radios.length - 1].focus(); radios[radios.length - 1].dispatchEvent(new Event("change", { bubbles: true })); }';
+	echo '});';
+	echo 'group.addEventListener("change", function (event) { if (event.target && event.target.type === "radio") { updateLastAnswered(event.target); } });';
+	echo '});';
+	echo 'restoreLastAnswered();';
+	echo '}());';
+	echo '</script>';
 }
 
 function questionnaireBuildValidationError($message, $errorType, array $context = array()) {
