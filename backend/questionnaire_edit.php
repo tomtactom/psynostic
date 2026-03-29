@@ -56,8 +56,8 @@
 		die('<p>Fragebogen nicht gefunden.</p>');
 	}
 ?>
-<article>
-	<section>
+<article class="qnr-layout qnr-layout--backend">
+	<section class="qnr-card">
 		<h1>Fragebogen bearbeiten</h1>
 		<p><a href="questionnaires.php">&laquo; Zurück zur Fragebogenliste</a></p>
 		<p>
@@ -67,19 +67,25 @@
 		</p>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Stammdaten</h2>
 		<form action="" method="post">
-			<label for="title">Titel</label><br>
-			<input type="text" name="title" id="title" maxlength="255" value="<?php echo htmlentities((string)$questionnaire['title']); ?>" required><br><br>
+			<div class="qnr-form-row">
+				<label for="title">Titel</label>
+				<input class="qnr-input" type="text" name="title" id="title" maxlength="255" value="<?php echo htmlentities((string)$questionnaire['title']); ?>" required>
+			</div>
 
-			<label for="intro_text">Intro</label><br>
-			<textarea name="intro_text" id="intro_text" rows="6" cols="80" maxlength="20000"><?php echo htmlentities((string)$questionnaire['intro_text']); ?></textarea><br><br>
+			<div class="qnr-form-row">
+				<label for="intro_text">Intro</label>
+				<textarea class="qnr-textarea" name="intro_text" id="intro_text" rows="6" maxlength="20000"><?php echo htmlentities((string)$questionnaire['intro_text']); ?></textarea>
+			</div>
 
-			<label for="standard_rules_json">Standardregeln (JSON)</label><br>
-			<textarea name="standard_rules_json" id="standard_rules_json" rows="10" cols="80"><?php echo htmlentities((string)$questionnaire['standard_rules_json']); ?></textarea><br><br>
+			<div class="qnr-form-row">
+				<label for="standard_rules_json">Standardregeln (JSON)</label>
+				<textarea class="qnr-textarea" name="standard_rules_json" id="standard_rules_json" rows="10"><?php echo htmlentities((string)$questionnaire['standard_rules_json']); ?></textarea>
+			</div>
 			<p><strong>Beispiel für Qualitätsparameter:</strong></p>
-			<pre style="white-space:pre-wrap;">{
+			<pre class="qnr-pre-wrap">{
   "quality_parameters": {
     "total_minimum_answered_ratio": 0.8,
     "subscale_minimum_answered_ratio": { "depression": 0.75 },
@@ -91,24 +97,24 @@
   }
 }</pre>
 
-			<button type="submit" name="save_questionnaire" value="1">Speichern</button>
+			<button class="qnr-btn qnr-focusable" type="submit" name="save_questionnaire" value="1">Speichern</button>
 		</form>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Rückmeldungen</h2>
 		<?php if (empty($errors) && empty($messages)) { ?>
 			<p>Keine Rückmeldungen.</p>
 		<?php } ?>
 		<?php if (!empty($errors)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--error">
 				<?php foreach ($errors as $errorMessage) { ?>
 					<li><?php echo htmlentities($errorMessage); ?></li>
 				<?php } ?>
 			</ul>
 		<?php } ?>
 		<?php if (!empty($messages)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--success">
 				<?php foreach ($messages as $message) { ?>
 					<li><?php echo htmlentities($message); ?></li>
 				<?php } ?>

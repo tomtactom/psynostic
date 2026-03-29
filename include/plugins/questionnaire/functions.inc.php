@@ -488,7 +488,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 	}
 
 	echo '<h2>Letzte Qualitätswarnungen</h2>';
-	echo '<table border="1" cellpadding="6" cellspacing="0">';
+	echo '<div class="qnr-table-wrap"><table class="qnr-table">';
 	echo '<tr><th>Session</th><th>Fragebogen</th><th>Beendet</th><th>Warnhinweise</th></tr>';
 	foreach ($sessions as $session) {
 		$quality = questionnaireEvaluateSessionQuality($pdo, $session, (int)$session['session_id']);
@@ -499,7 +499,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 		if (empty($quality['warnings'])) {
 			echo '<td>Keine Warnhinweise</td>';
 		} else {
-			echo '<td><ul style="margin:0;padding-left:18px;">';
+			echo '<td><ul class="qnr-list-compact">';
 			foreach ($quality['warnings'] as $warning) {
 				echo '<li>'.htmlentities((string)$warning).'</li>';
 			}
@@ -507,7 +507,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 		}
 		echo '</tr>';
 	}
-	echo '</table>';
+	echo '</table></div>';
 }
 
 function questionnaire_show_frontend() {
@@ -615,16 +615,23 @@ function questionnaire_show_frontend() {
 		$currentStep = 'intro';
 	}
 
+	echo '<div class="qnr-layout qnr-layout--backend">';
 	echo '<h1>'.htmlentities((string)$questionnaire['title']).'</h1>';
+	echo '<ol class="qnr-stepper">';
+	echo '<li'.($currentStep === 'intro' ? ' class="is-active"' : '').'>Intro</li>';
+	echo '<li'.($currentStep === 'demographics' ? ' class="is-active"' : '').'>Demografie</li>';
+	echo '<li'.($currentStep === 'items' ? ' class="is-active"' : '').'>Items</li>';
+	echo '<li'.($currentStep === 'done' ? ' class="is-active"' : '').'>Abschluss</li>';
+	echo '</ol>';
 	if (!empty($messages)) {
-		echo '<ul>';
+		echo '<ul class="qnr-alert qnr-alert--success">';
 		foreach ($messages as $message) {
 			echo '<li>'.htmlentities((string)$message).'</li>';
 		}
 		echo '</ul>';
 	}
 	if (!empty($errors)) {
-		echo '<ul>';
+		echo '<ul class="qnr-alert qnr-alert--error">';
 		foreach ($errors as $error) {
 			echo '<li>'.htmlentities((string)$error).'</li>';
 		}
@@ -633,23 +640,25 @@ function questionnaire_show_frontend() {
 
 	if ($currentStep === 'intro') {
 		echo '<p>'.nl2br(htmlentities((string)$questionnaire['intro_text'])).'</p>';
-		echo '<form method="post" action="?step=demographics">';
+		echo '<form class="qnr-card" method="post" action="?step=demographics">';
 		echo '<input type="hidden" name="action" value="start">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-		echo '<button type="submit">Fragebogen starten</button>';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Fragebogen starten</button>';
 		echo '</form>';
+		echo '</div>';
 		return;
 	}
 
 	if ($currentStep === 'demographics') {
 		$values = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
 		echo '<h2>1) Demografische Angaben</h2>';
-		echo '<form method="post" action="?step=items">';
+		echo '<form class="qnr-card" method="post" action="?step=items">';
 		echo '<input type="hidden" name="action" value="save_demographics">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		questionnaireRenderDemographicInputs($demographicFields, $values);
-		echo '<button type="submit">Weiter zu den Items</button>';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Weiter zu den Items</button>';
 		echo '</form>';
+		echo '</div>';
 		return;
 	}
 
@@ -657,14 +666,15 @@ function questionnaire_show_frontend() {
 		$demoValues = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
 		$itemValues = !empty($postedItems) ? $postedItems : array();
 		echo '<h2>2) Items beantworten</h2>';
-		echo '<form method="post" action="?step=done">';
+		echo '<form class="qnr-card" method="post" action="?step=done">';
 		echo '<input type="hidden" name="action" value="finish">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		echo '<input type="hidden" name="completion_token" value="'.htmlentities((string)$flow['completion_token']).'">';
 		questionnaireRenderHiddenDemographics($demographicFields, $demoValues);
 		questionnaireRenderItems($items, $itemValues);
-		echo '<button type="submit">Abschließen</button>';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Abschließen</button>';
 		echo '</form>';
+		echo '</div>';
 		return;
 	}
 
@@ -680,7 +690,7 @@ function questionnaire_show_frontend() {
 	if (isset($result['quality']) && is_array($result['quality'])) {
 		echo '<h3>Qualitätshinweise</h3>';
 		if (!empty($result['quality']['warnings'])) {
-			echo '<ul>';
+			echo '<ul class="qnr-alert">';
 			foreach ($result['quality']['warnings'] as $warning) {
 				echo '<li>'.htmlentities((string)$warning).'</li>';
 			}
@@ -696,11 +706,12 @@ function questionnaire_show_frontend() {
 		}
 		echo '</ul>';
 	}
-	echo '<form method="post" action="?step=intro">';
+	echo '<form class="qnr-card" method="post" action="?step=intro">';
 	echo '<input type="hidden" name="action" value="start">';
 	echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-	echo '<button type="submit">Neue Durchführung starten</button>';
+	echo '<button class="qnr-btn qnr-focusable" type="submit">Neue Durchführung starten</button>';
 	echo '</form>';
+	echo '</div>';
 }
 
 function questionnaireLoadActiveQuestionnaire(PDO $pdo) {
@@ -894,12 +905,14 @@ function questionnaireRenderDemographicInputs(array $fields, array $values) {
 		$type = isset($field['field_type']) ? strtolower((string)$field['field_type']) : 'text';
 		$isRequired = isset($field['is_required']) && (int)$field['is_required'] === 1;
 		$current = array_key_exists($key, $values) ? (string)$values[$key] : '';
-		echo '<label for="demo_'.htmlentities($key).'">'.htmlentities($label).($isRequired ? ' *' : '').'</label><br>';
+		echo '<div class="qnr-form-row">';
+		echo '<label for="demo_'.htmlentities($key).'">'.htmlentities($label).($isRequired ? ' *' : '').'</label>';
 		if ($type === 'integer' || $type === 'number') {
-			echo '<input type="number" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+			echo '<input class="qnr-input" type="number" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'>';
 		} else {
-			echo '<input type="text" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+			echo '<input class="qnr-input" type="text" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'>';
 		}
+		echo '</div>';
 	}
 }
 
@@ -925,11 +938,13 @@ function questionnaireRenderItems(array $items, array $values) {
 		$max = (int)$item['likert_max'];
 		$isRequired = isset($item['is_required']) && (int)$item['is_required'] === 1;
 		$current = array_key_exists($itemId, $values) ? (string)$values[$itemId] : '';
-		echo '<fieldset style="margin-bottom:12px;"><legend>'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' *' : '').'</legend>';
+		echo '<fieldset class="qnr-fieldset"><legend>'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' *' : '').'</legend>';
+		echo '<div class="qnr-radio-group">';
 		for ($value = $min; $value <= $max; $value++) {
 			$checked = ($current !== '' && (int)$current === $value) ? 'checked' : '';
-			echo '<label style="margin-right:10px;"><input type="radio" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' '.($isRequired ? 'required' : '').'> '.$value.'</label>';
+			echo '<label class="qnr-radio-option"><input type="radio" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' '.($isRequired ? 'required' : '').'> '.$value.'</label>';
 		}
+		echo '</div>';
 		echo '</fieldset>';
 	}
 }
