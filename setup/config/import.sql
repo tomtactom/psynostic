@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS `questionnaires` (
   `title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `intro_text` text COLLATE utf8mb4_unicode_ci,
   `standard_rules_json` longtext COLLATE utf8mb4_unicode_ci,
+  `scoring_config_json` longtext COLLATE utf8mb4_unicode_ci,
   `status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT NULL,
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS `questionnaires` (
 CREATE TABLE IF NOT EXISTS `questionnaire_items` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `questionnaire_id` int(10) unsigned NOT NULL,
+  `item_key` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `item_no` int(10) unsigned NOT NULL,
   `item_text` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `scale_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'likert',
@@ -111,6 +113,7 @@ CREATE TABLE IF NOT EXISTS `questionnaire_items` (
   `is_required` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`),
   KEY `idx_questionnaire_items_questionnaire_id` (`questionnaire_id`),
+  UNIQUE KEY `uniq_questionnaire_items_questionnaire_item_key` (`questionnaire_id`,`item_key`),
   CONSTRAINT `fk_questionnaire_items_questionnaire_id`
     FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -3,11 +3,11 @@
  * Normgruppen-Zuordnung für abgeschlossene Sessions.
  *
  * Erwartete Tabellenstruktur (mindestens):
- * - sessions(id, status)
- * - session_demographics(session_id, demographic_key, demographic_value)
- * - questionnaire_scores(session_id, questionnaire_id, scale_key, raw_score)
- * - norm_groups(id, questionnaire_id, label, is_global_reference, demographic_rule_json)
- * - norm_rows(id, norm_group_id, questionnaire_id, scale_key, raw_min, raw_max, t_score, percentile, interpretation)
+ * - questionnaire_sessions(id, completion_status)
+ * - questionnaire_session_demographics(session_id, field_key, demographic_value)
+ * - questionnaire_scores(session_id, score_key, raw_mean, raw_sum)
+ * - norm_groups(id, norm_table_id, group_key, demographic_rule_json)
+ * - norm_rows(id, norm_group_id, score_key, raw_min, raw_max, t_score, percentile, norm_label)
  */
 
 /**
@@ -91,7 +91,7 @@ function assign_norms_for_completed_session(PDO $pdo, int $sessionId): array
 
 function assert_session_is_completed(PDO $pdo, int $sessionId): void
 {
-    $stmt = $pdo->prepare('SELECT status FROM sessions WHERE id = :id LIMIT 1');
+    $stmt = $pdo->prepare('SELECT completion_status FROM questionnaire_sessions WHERE id = :id LIMIT 1');
     $stmt->execute(array(':id' => $sessionId));
     $status = $stmt->fetchColumn();
 
@@ -100,22 +100,26 @@ function assert_session_is_completed(PDO $pdo, int $sessionId): void
     }
 
     if ($status !== 'completed') {
-        throw new RuntimeException('Session ist nicht abgeschlossen (status='.$status.').');
+        throw new RuntimeException('Session ist nicht abgeschlossen (completion_status='.$status.').');
     }
 }
 
 function load_session_demographics(PDO $pdo, int $sessionId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT demographic_key, demographic_value
-         FROM session_demographics
+        'SELECT field_key, demographic_value
+         FROM questionnaire_session_demographics
          WHERE session_id = :session_id'
     );
     $stmt->execute(array(':session_id' => $sessionId));
 
     $demographics = array();
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        $demographics[$row['demographic_key']] = cast_demographic_value($row['demographic_value']);
+        $fieldKey = isset($row['field_key']) ? $row['field_key'] : null;
+        if ($fieldKey === null) {
+            continue;
+        }
+        $demographics[$fieldKey] = cast_demographic_value($row['demographic_value']);
     }
 
     return $demographics;
@@ -141,21 +145,44 @@ function cast_demographic_value($value)
 function load_questionnaire_scores(PDO $pdo, int $sessionId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT questionnaire_id, scale_key, raw_score
-         FROM questionnaire_scores
-         WHERE session_id = :session_id'
+        'SELECT qs.session_id, s.questionnaire_id, qs.score_key, qs.raw_mean, qs.raw_sum
+         FROM questionnaire_scores qs
+         INNER JOIN questionnaire_sessions s ON s.id = qs.session_id
+         WHERE qs.session_id = :session_id'
     );
     $stmt->execute(array(':session_id' => $sessionId));
 
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $mapped = array();
+    foreach ($rows as $row) {
+        $scoreKey = isset($row['score_key']) ? (string)$row['score_key'] : '';
+        if ($scoreKey === '') {
+            continue;
+        }
+        $rawScore = $row['raw_mean'] !== null ? (float)$row['raw_mean'] : null;
+        if ($rawScore === null && $row['raw_sum'] !== null) {
+            $rawScore = (float)$row['raw_sum'];
+        }
+        if ($rawScore === null) {
+            continue;
+        }
+        $mapped[] = array(
+            'questionnaire_id' => (int)$row['questionnaire_id'],
+            'scale_key' => $scoreKey,
+            'raw_score' => $rawScore
+        );
+    }
+
+    return $mapped;
 }
 
 function load_norm_groups(PDO $pdo, int $questionnaireId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, questionnaire_id, label, is_global_reference, demographic_rule_json
-         FROM norm_groups
-         WHERE questionnaire_id = :questionnaire_id'
+        'SELECT ng.id, nt.questionnaire_id, ng.group_key, ng.demographic_rule_json, nt.is_active
+         FROM norm_groups ng
+         INNER JOIN norm_tables nt ON nt.id = ng.norm_table_id
+         WHERE nt.questionnaire_id = :questionnaire_id'
     );
     $stmt->execute(array(':questionnaire_id' => $questionnaireId));
 
@@ -181,7 +208,7 @@ function select_norm_group_by_demographics(array $normGroups, array $demographic
     $globalFallback = null;
 
     foreach ($normGroups as $group) {
-        if ((int) $group['is_global_reference'] === 1 && $globalFallback === null) {
+        if ($globalFallback === null && (!isset($group['rule']['op']) || $group['rule']['op'] === 'all')) {
             $globalFallback = $group;
         }
 
@@ -216,11 +243,10 @@ function select_norm_group_by_demographics(array $normGroups, array $demographic
 function map_raw_score_to_norm_row(PDO $pdo, int $normGroupId, int $questionnaireId, string $scaleKey, float $rawScore): ?array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, t_score, percentile, interpretation
+        'SELECT id, t_score, percentile, norm_label AS interpretation
          FROM norm_rows
          WHERE norm_group_id = :norm_group_id
-           AND questionnaire_id = :questionnaire_id
-           AND scale_key = :scale_key
+           AND score_key = :scale_key
            AND :raw_score >= raw_min
            AND :raw_score <= raw_max
          ORDER BY raw_min DESC
@@ -228,7 +254,6 @@ function map_raw_score_to_norm_row(PDO $pdo, int $normGroupId, int $questionnair
     );
     $stmt->execute(array(
         ':norm_group_id' => $normGroupId,
-        ':questionnaire_id' => $questionnaireId,
         ':scale_key' => $scaleKey,
         ':raw_score' => $rawScore,
     ));
