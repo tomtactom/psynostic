@@ -674,33 +674,90 @@ function questionnaire_show_frontend() {
 		echo '<p>Kein Ergebnis vorhanden.</p>';
 		return;
 	}
-	echo '<p>Session-ID: '.(int)$result['session_id'].'</p>';
-	echo '<p>Gesamtscore (Mittelwert): '.htmlentities((string)$result['total_mean']).'</p>';
-	echo '<p>Gesamtscore (Summe): '.htmlentities((string)$result['total_sum']).'</p>';
-	if (isset($result['quality']) && is_array($result['quality'])) {
-		echo '<h3>Qualitätshinweise</h3>';
-		if (!empty($result['quality']['warnings'])) {
-			echo '<ul>';
-			foreach ($result['quality']['warnings'] as $warning) {
-				echo '<li>'.htmlentities((string)$warning).'</li>';
-			}
-			echo '</ul>';
+
+	$totalMean = isset($result['total_mean']) ? (float)$result['total_mean'] : null;
+	$totalInterpretation = 'Dieses Gesamtergebnis ist eine deskriptive Zusammenfassung Ihrer Antworten und keine medizinische Diagnose.';
+	if ($totalMean !== null) {
+		if ($totalMean < 2.5) {
+			$totalInterpretation = 'Im Mittel liegen Ihre Antworten eher im unteren Bereich der Skala. Das kann auf geringere Ausprägungen in den abgefragten Bereichen hindeuten.';
+		} elseif ($totalMean < 3.5) {
+			$totalInterpretation = 'Im Mittel liegen Ihre Antworten im mittleren Bereich der Skala. Das spricht für eine ausgewogene bzw. moderate Ausprägung der abgefragten Bereiche.';
 		} else {
-			echo '<p>Keine Qualitätshinweise.</p>';
+			$totalInterpretation = 'Im Mittel liegen Ihre Antworten eher im oberen Bereich der Skala. Das kann auf stärkere Ausprägungen in den abgefragten Bereichen hindeuten.';
 		}
+		$totalInterpretation .= ' Diese Einordnung ersetzt keine professionelle Beurteilung.';
 	}
+
+	echo '<section aria-label="Ergebnisse">';
+	echo '<article>';
+	echo '<h3>Gesamtergebnis</h3>';
+	echo '<p><strong>Gesamtscore (Mittelwert):</strong> '.htmlentities((string)$result['total_mean']).'</p>';
+	echo '<p><strong>Gesamtscore (Summe):</strong> '.htmlentities((string)$result['total_sum']).'</p>';
+	echo '<p>'.$totalInterpretation.'</p>';
+	echo '</article>';
+
+	echo '<article>';
+	echo '<h3>Subskalen</h3>';
 	if (!empty($result['subscales'])) {
-		echo '<h3>Subskalen</h3><ul>';
+		echo '<ul>';
 		foreach ($result['subscales'] as $subscale) {
-			echo '<li>'.htmlentities((string)$subscale['score_key']).': Mean '.htmlentities((string)$subscale['raw_mean']).', Sum '.htmlentities((string)$subscale['raw_sum']).'</li>';
+			$subscaleMean = isset($subscale['raw_mean']) ? (float)$subscale['raw_mean'] : null;
+			$subscaleText = 'Deskriptive Einordnung ohne diagnostische Aussage.';
+			if ($subscaleMean !== null) {
+				if ($subscaleMean < 2.5) {
+					$subscaleText = 'Eher niedriger Bereich innerhalb dieser Subskala.';
+				} elseif ($subscaleMean < 3.5) {
+					$subscaleText = 'Mittlerer Bereich innerhalb dieser Subskala.';
+				} else {
+					$subscaleText = 'Eher höherer Bereich innerhalb dieser Subskala.';
+				}
+			}
+			echo '<li>';
+			echo '<strong>'.htmlentities((string)$subscale['score_key']).'</strong>: ';
+			echo 'Mittelwert '.htmlentities((string)$subscale['raw_mean']).', ';
+			echo 'Summe '.htmlentities((string)$subscale['raw_sum']).'. ';
+			echo htmlentities($subscaleText);
+			echo '</li>';
 		}
 		echo '</ul>';
+		echo '<p>Die Subskalen zeigen, in welchen Themenbereichen die Antworten relativ niedriger, mittler oder höher ausfallen.</p>';
+	} else {
+		echo '<p>Für diesen Fragebogen sind keine Subskalen ausgewiesen.</p>';
+		echo '<p>Falls künftig Subskalen hinterlegt werden, erscheinen diese hier mit einer kurzen Einordnung.</p>';
 	}
+	echo '</article>';
+
+	echo '<article>';
+	echo '<h3>Qualitätsindikatoren</h3>';
+	if (isset($result['quality']) && is_array($result['quality']) && !empty($result['quality']['warnings'])) {
+		echo '<ul>';
+		foreach ($result['quality']['warnings'] as $warning) {
+			echo '<li>'.htmlentities((string)$warning).'</li>';
+		}
+		echo '</ul>';
+		echo '<p>Die Hinweise helfen bei der Einordnung der Aussagekraft (z. B. Vollständigkeit oder Antwortmuster).</p>';
+	} else {
+		echo '<p>Keine besonderen Qualitätshinweise.</p>';
+		echo '<p>Die Antworten wirken formal konsistent und auswertbar.</p>';
+	}
+	echo '</article>';
+	echo '</section>';
+
+	echo '<section aria-label="Nächste Schritte">';
+	echo '<h3>Nächste Schritte</h3>';
 	echo '<form method="post" action="?step=intro">';
 	echo '<input type="hidden" name="action" value="start">';
 	echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 	echo '<button type="submit">Neue Durchführung starten</button>';
 	echo '</form>';
+	echo '<p><a href="?step=intro">Zur Übersicht</a></p>';
+	echo '<p><strong>Optional:</strong> Ergebnis als PDF/CSV (derzeit noch nicht verfügbar).</p>';
+	echo '</section>';
+
+	echo '<details>';
+	echo '<summary>Details</summary>';
+	echo '<p>Session-ID: '.(int)$result['session_id'].'</p>';
+	echo '</details>';
 }
 
 function questionnaireLoadActiveQuestionnaire(PDO $pdo) {
