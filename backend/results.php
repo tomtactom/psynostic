@@ -283,5 +283,8 @@
 			</table>
 		<?php } ?>
 	</section>
+	<section>
+		<?php questionnaireRenderBackendQualityWarnings($pdo); ?>
+	</section>
 </article>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php'); ?>

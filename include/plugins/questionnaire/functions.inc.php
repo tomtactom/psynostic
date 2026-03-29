@@ -258,6 +258,190 @@ function questionnaireResolveModes(array $config, $context) {
 	return $modes;
 }
 
+function questionnaireDecodeStandardRules(array $questionnaire) {
+	$rules = array();
+	if (!isset($questionnaire['standard_rules_json']) || trim((string)$questionnaire['standard_rules_json']) === '') {
+		return $rules;
+	}
+
+	$decoded = json_decode((string)$questionnaire['standard_rules_json'], true);
+	if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+		return $rules;
+	}
+
+	return $decoded;
+}
+
+function questionnaireResolveQualityConfig(array $questionnaire) {
+	$rules = questionnaireDecodeStandardRules($questionnaire);
+	$quality = isset($rules['quality_parameters']) && is_array($rules['quality_parameters']) ? $rules['quality_parameters'] : array();
+
+	$resolved = array(
+		'total_minimum_answered_ratio' => isset($quality['total_minimum_answered_ratio']) ? max(0.0, min(1.0, (float)$quality['total_minimum_answered_ratio'])) : 0.8,
+		'subscale_minimum_answered_ratio' => array(),
+		'speeding' => array(
+			'min_seconds' => isset($quality['speeding']['min_seconds']) ? max(0, (int)$quality['speeding']['min_seconds']) : null,
+			'max_seconds' => isset($quality['speeding']['max_seconds']) ? max(0, (int)$quality['speeding']['max_seconds']) : null
+		),
+		'inconsistency_pairs' => array(),
+		'reliability' => array(
+			'enabled' => !empty($quality['reliability']['enabled'])
+		)
+	);
+
+	if (isset($quality['subscale_minimum_answered_ratio']) && is_array($quality['subscale_minimum_answered_ratio'])) {
+		foreach ($quality['subscale_minimum_answered_ratio'] as $key => $value) {
+			$subscaleKey = trim((string)$key);
+			if ($subscaleKey === '') {
+				continue;
+			}
+			$resolved['subscale_minimum_answered_ratio'][$subscaleKey] = max(0.0, min(1.0, (float)$value));
+		}
+	}
+
+	if (isset($quality['inconsistency_pairs']) && is_array($quality['inconsistency_pairs'])) {
+		foreach ($quality['inconsistency_pairs'] as $pair) {
+			if (!is_array($pair)) {
+				continue;
+			}
+			$left = isset($pair['item_no_left']) ? (int)$pair['item_no_left'] : 0;
+			$right = isset($pair['item_no_right']) ? (int)$pair['item_no_right'] : 0;
+			$maxDiff = isset($pair['max_abs_diff']) ? (float)$pair['max_abs_diff'] : 2.0;
+			if ($left <= 0 || $right <= 0 || $maxDiff < 0) {
+				continue;
+			}
+			$resolved['inconsistency_pairs'][] = array(
+				'item_no_left' => $left,
+				'item_no_right' => $right,
+				'max_abs_diff' => $maxDiff
+			);
+		}
+	}
+
+	return $resolved;
+}
+
+function questionnaireEvaluateQualityFromData(array $items, array $responsesByItemId, $startedAt, $finishedAt, array $qualityConfig) {
+	$totalItems = count($items);
+	$answeredItems = 0;
+	$itemNoToRaw = array();
+	$subscaleStats = array();
+	foreach ($items as $item) {
+		$itemId = isset($item['id']) ? (int)$item['id'] : 0;
+		if ($itemId <= 0) {
+			continue;
+		}
+		$subscaleKey = isset($item['subscale_key']) ? trim((string)$item['subscale_key']) : '';
+		if ($subscaleKey !== '') {
+			if (!isset($subscaleStats[$subscaleKey])) {
+				$subscaleStats[$subscaleKey] = array('total' => 0, 'answered' => 0);
+			}
+			$subscaleStats[$subscaleKey]['total']++;
+		}
+
+		if (!array_key_exists($itemId, $responsesByItemId) || $responsesByItemId[$itemId] === null || $responsesByItemId[$itemId] === '') {
+			continue;
+		}
+		$answeredItems++;
+		$itemNo = isset($item['item_no']) ? (int)$item['item_no'] : 0;
+		if ($itemNo > 0) {
+			$itemNoToRaw[$itemNo] = (float)$responsesByItemId[$itemId];
+		}
+		if ($subscaleKey !== '') {
+			$subscaleStats[$subscaleKey]['answered']++;
+		}
+	}
+
+	$warnings = array();
+	$totalRatio = $totalItems > 0 ? ($answeredItems / $totalItems) : 0.0;
+	if ($totalItems > 0 && $totalRatio < $qualityConfig['total_minimum_answered_ratio']) {
+		$warnings[] = 'Interpretation eingeschränkt wegen hoher Missing-Rate (gesamt).';
+	}
+
+	foreach ($qualityConfig['subscale_minimum_answered_ratio'] as $subscaleKey => $minRatio) {
+		if (!isset($subscaleStats[$subscaleKey]) || $subscaleStats[$subscaleKey]['total'] <= 0) {
+			continue;
+		}
+		$currentRatio = $subscaleStats[$subscaleKey]['answered'] / $subscaleStats[$subscaleKey]['total'];
+		if ($currentRatio < $minRatio) {
+			$warnings[] = 'Interpretation der Subskala "'.$subscaleKey.'" eingeschränkt (zu viele fehlende Antworten).';
+		}
+	}
+
+	$durationSeconds = null;
+	if ($startedAt !== null && $finishedAt !== null) {
+		$startedTs = strtotime((string)$startedAt);
+		$finishedTs = strtotime((string)$finishedAt);
+		if ($startedTs !== false && $finishedTs !== false && $finishedTs >= $startedTs) {
+			$durationSeconds = (int)($finishedTs - $startedTs);
+		}
+	}
+
+	$minSeconds = $qualityConfig['speeding']['min_seconds'];
+	$maxSeconds = $qualityConfig['speeding']['max_seconds'];
+	if ($durationSeconds !== null && $minSeconds !== null && $durationSeconds < $minSeconds) {
+		$warnings[] = 'Speeding-Flag: Antwortzeit liegt unter dem erlaubten Zeitfenster.';
+	}
+	if ($durationSeconds !== null && $maxSeconds !== null && $maxSeconds > 0 && $durationSeconds > $maxSeconds) {
+		$warnings[] = 'Antwortzeit außerhalb des erlaubten Zeitfensters (zu lang).';
+	}
+
+	foreach ($qualityConfig['inconsistency_pairs'] as $pair) {
+		$left = $pair['item_no_left'];
+		$right = $pair['item_no_right'];
+		if (!isset($itemNoToRaw[$left]) || !isset($itemNoToRaw[$right])) {
+			continue;
+		}
+		$absDiff = abs($itemNoToRaw[$left] - $itemNoToRaw[$right]);
+		if ($absDiff > $pair['max_abs_diff']) {
+			$warnings[] = 'Inconsistency-Flag: auffällige Antwortdifferenz zwischen Item '.$left.' und '.$right.'.';
+		}
+	}
+
+	$metrics = array(
+		'answered_ratio_total' => $totalRatio,
+		'answered_items_total' => $answeredItems,
+		'total_items' => $totalItems,
+		'duration_seconds' => $durationSeconds,
+		'reliability' => array(
+			'enabled' => !empty($qualityConfig['reliability']['enabled']),
+			'label' => !empty($qualityConfig['reliability']['enabled']) ? 'Interne Konsistenz wird in der Forschungsansicht berechnet.' : null
+		)
+	);
+
+	return array(
+		'warnings' => array_values(array_unique($warnings)),
+		'metrics' => $metrics
+	);
+}
+
+function questionnaireEvaluateSessionQuality(PDO $pdo, array $questionnaire, $sessionId) {
+	$itemStmt = $pdo->prepare('SELECT id, item_no, subscale_key FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id');
+	$itemStmt->execute(array(':questionnaire_id' => (int)$questionnaire['id']));
+	$items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$answerStmt = $pdo->prepare('SELECT item_id, raw_value FROM questionnaire_answers WHERE session_id = :session_id');
+	$answerStmt->execute(array(':session_id' => (int)$sessionId));
+	$rows = $answerStmt->fetchAll(PDO::FETCH_ASSOC);
+	$responsesByItemId = array();
+	foreach ($rows as $row) {
+		$responsesByItemId[(int)$row['item_id']] = $row['raw_value'];
+	}
+
+	$sessionStmt = $pdo->prepare('SELECT started_at, finished_at FROM questionnaire_sessions WHERE id = :id LIMIT 1');
+	$sessionStmt->execute(array(':id' => (int)$sessionId));
+	$session = $sessionStmt->fetch(PDO::FETCH_ASSOC);
+
+	$qualityConfig = questionnaireResolveQualityConfig($questionnaire);
+	return questionnaireEvaluateQualityFromData(
+		$items,
+		$responsesByItemId,
+		$session ? $session['started_at'] : null,
+		$session ? $session['finished_at'] : null,
+		$qualityConfig
+	);
+}
+
 // Functions for Plugin Questionnaire
 
 function questionnaire_get_urls() {
@@ -280,6 +464,50 @@ function questionnaire_show_backend_overview($title, $description) {
 	echo '<li><a href="'.$urls['results'].'">Ergebnisse</a></li>';
 	echo '<li><a href="'.$urls['frontend'].'">Frontend-Ansicht</a></li>';
 	echo '</ul>';
+}
+
+function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
+	$stmt = $pdo->query('
+		SELECT
+			qs.id AS session_id,
+			qs.questionnaire_id,
+			qs.started_at,
+			qs.finished_at,
+			q.title,
+			q.standard_rules_json
+		FROM questionnaire_sessions qs
+		INNER JOIN questionnaires q ON q.id = qs.questionnaire_id
+		WHERE qs.completion_status = "completed"
+		ORDER BY qs.finished_at DESC, qs.id DESC
+		LIMIT 20
+	');
+	$sessions = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : array();
+	if (empty($sessions)) {
+		echo '<p>Keine abgeschlossenen Durchführungen vorhanden.</p>';
+		return;
+	}
+
+	echo '<h2>Letzte Qualitätswarnungen</h2>';
+	echo '<table border="1" cellpadding="6" cellspacing="0">';
+	echo '<tr><th>Session</th><th>Fragebogen</th><th>Beendet</th><th>Warnhinweise</th></tr>';
+	foreach ($sessions as $session) {
+		$quality = questionnaireEvaluateSessionQuality($pdo, $session, (int)$session['session_id']);
+		echo '<tr>';
+		echo '<td>#'.(int)$session['session_id'].'</td>';
+		echo '<td>'.htmlentities((string)$session['title']).'</td>';
+		echo '<td>'.htmlentities((string)$session['finished_at']).'</td>';
+		if (empty($quality['warnings'])) {
+			echo '<td>Keine Warnhinweise</td>';
+		} else {
+			echo '<td><ul style="margin:0;padding-left:18px;">';
+			foreach ($quality['warnings'] as $warning) {
+				echo '<li>'.htmlentities((string)$warning).'</li>';
+			}
+			echo '</ul></td>';
+		}
+		echo '</tr>';
+	}
+	echo '</table>';
 }
 
 function questionnaire_show_frontend() {
@@ -449,6 +677,18 @@ function questionnaire_show_frontend() {
 	echo '<p>Session-ID: '.(int)$result['session_id'].'</p>';
 	echo '<p>Gesamtscore (Mittelwert): '.htmlentities((string)$result['total_mean']).'</p>';
 	echo '<p>Gesamtscore (Summe): '.htmlentities((string)$result['total_sum']).'</p>';
+	if (isset($result['quality']) && is_array($result['quality'])) {
+		echo '<h3>Qualitätshinweise</h3>';
+		if (!empty($result['quality']['warnings'])) {
+			echo '<ul>';
+			foreach ($result['quality']['warnings'] as $warning) {
+				echo '<li>'.htmlentities((string)$warning).'</li>';
+			}
+			echo '</ul>';
+		} else {
+			echo '<p>Keine Qualitätshinweise.</p>';
+		}
+	}
 	if (!empty($result['subscales'])) {
 		echo '<h3>Subskalen</h3><ul>';
 		foreach ($result['subscales'] as $subscale) {
@@ -464,7 +704,7 @@ function questionnaire_show_frontend() {
 }
 
 function questionnaireLoadActiveQuestionnaire(PDO $pdo) {
-	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text FROM questionnaires WHERE status = :status ORDER BY updated_at DESC, id DESC LIMIT 1');
+	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text, standard_rules_json FROM questionnaires WHERE status = :status ORDER BY updated_at DESC, id DESC LIMIT 1');
 	$stmt->execute(array(':status' => 'active'));
 	return $stmt->fetch(PDO::FETCH_ASSOC);
 }
@@ -709,6 +949,7 @@ function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $que
 
 		if ($session['finished_at'] !== null || $session['completion_status'] === 'completed') {
 			$result = questionnaireLoadStoredResult($pdo, (int)$sessionId);
+			$result['quality'] = questionnaireEvaluateSessionQuality($pdo, $questionnaire, (int)$sessionId);
 			$result['already_completed'] = true;
 			$pdo->commit();
 			return $result;
@@ -799,6 +1040,7 @@ function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $que
 		));
 
 		$result = questionnaireLoadStoredResult($pdo, (int)$sessionId);
+		$result['quality'] = questionnaireEvaluateSessionQuality($pdo, $questionnaire, (int)$sessionId);
 		$result['already_completed'] = false;
 		$pdo->commit();
 		return $result;
