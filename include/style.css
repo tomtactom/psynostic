@@ -8,6 +8,8 @@
 	--qnr-color-primary-contrast: #ffffff;
 	--qnr-color-success-bg: #e8f7ee;
 	--qnr-color-success-text: #0f5132;
+	--qnr-color-info-bg: #e8f1ff;
+	--qnr-color-info-text: #0f3f8f;
 	--qnr-color-danger-bg: #fdecec;
 	--qnr-color-danger-text: #842029;
 	--qnr-color-focus: #ff9f0a;
@@ -123,11 +125,22 @@
 	border-color: var(--qnr-color-border);
 }
 
+.qnr-btn--danger {
+	background: var(--qnr-color-danger-bg);
+	color: var(--qnr-color-danger-text);
+	border-color: #f1b0b7;
+}
+
 .qnr-alert {
 	border: 1px solid var(--qnr-color-border);
 	border-radius: var(--qnr-radius-sm);
 	padding: var(--qnr-space-3);
 	margin-bottom: var(--qnr-space-3);
+}
+
+.qnr-alert--info {
+	background: var(--qnr-color-info-bg);
+	color: var(--qnr-color-info-text);
 }
 
 .qnr-alert--success {
@@ -165,6 +178,13 @@
 
 .qnr-table-wrap {
 	overflow-x: auto;
+}
+
+.qnr-action-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--qnr-space-2);
 }
 
 .qnr-table {

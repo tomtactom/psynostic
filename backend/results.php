@@ -169,56 +169,66 @@
 	$listStmt->execute($params);
 	$sessions = $listStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-<article>
-	<section>
+<main class="qnr-layout qnr-layout--backend">
+	<section class="qnr-card">
 		<?php questionnaire_show_backend_overview('Ergebnisse', 'Auswertung, Filterung und Löschung von Fragebogen-Sessions.'); ?>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Filter</h2>
 		<form action="" method="get">
-			<label for="questionnaire_id">Fragebogen</label><br>
-			<select name="questionnaire_id" id="questionnaire_id">
-				<option value="0">Alle Fragebögen</option>
-				<?php foreach ($questionnaires as $questionnaireOption) { ?>
-					<option value="<?php echo (int)$questionnaireOption['id']; ?>" <?php echo $filterQuestionnaireId === (int)$questionnaireOption['id'] ? 'selected' : ''; ?>><?php echo htmlentities((string)$questionnaireOption['title']); ?> (<?php echo htmlentities((string)$questionnaireOption['slug']); ?>)</option>
-				<?php } ?>
-			</select><br><br>
+			<div class="qnr-form-row">
+				<label for="questionnaire_id">Fragebogen</label>
+				<select class="qnr-input" name="questionnaire_id" id="questionnaire_id">
+					<option value="0">Alle Fragebögen</option>
+					<?php foreach ($questionnaires as $questionnaireOption) { ?>
+						<option value="<?php echo (int)$questionnaireOption['id']; ?>" <?php echo $filterQuestionnaireId === (int)$questionnaireOption['id'] ? 'selected' : ''; ?>><?php echo htmlentities((string)$questionnaireOption['title']); ?> (<?php echo htmlentities((string)$questionnaireOption['slug']); ?>)</option>
+					<?php } ?>
+				</select>
+			</div>
 
-			<label for="user_id">Nutzer</label><br>
-			<select name="user_id" id="user_id">
-				<option value="0">Alle Nutzer</option>
-				<?php foreach ($users as $userOption) { ?>
-					<?php $userDisplayName = trim((string)$userOption['vorname'].' '.(string)$userOption['nachname']); ?>
-					<option value="<?php echo (int)$userOption['id']; ?>" <?php echo $filterUserId === (int)$userOption['id'] ? 'selected' : ''; ?>><?php echo htmlentities($userDisplayName !== '' ? $userDisplayName : (string)$userOption['username']); ?> (@<?php echo htmlentities((string)$userOption['username']); ?>)</option>
-				<?php } ?>
-			</select><br><br>
+			<div class="qnr-form-row">
+				<label for="user_id">Nutzer</label>
+				<select class="qnr-input" name="user_id" id="user_id">
+					<option value="0">Alle Nutzer</option>
+					<?php foreach ($users as $userOption) { ?>
+						<?php $userDisplayName = trim((string)$userOption['vorname'].' '.(string)$userOption['nachname']); ?>
+						<option value="<?php echo (int)$userOption['id']; ?>" <?php echo $filterUserId === (int)$userOption['id'] ? 'selected' : ''; ?>><?php echo htmlentities($userDisplayName !== '' ? $userDisplayName : (string)$userOption['username']); ?> (@<?php echo htmlentities((string)$userOption['username']); ?>)</option>
+					<?php } ?>
+				</select>
+			</div>
 
-			<label for="date_from">Zeitraum von</label><br>
-			<input type="date" name="date_from" id="date_from" value="<?php echo htmlentities($filterDateFrom); ?>"><br><br>
+			<div class="qnr-form-row">
+				<label for="date_from">Zeitraum von</label>
+				<input class="qnr-input" type="date" name="date_from" id="date_from" value="<?php echo htmlentities($filterDateFrom); ?>">
+			</div>
 
-			<label for="date_to">Zeitraum bis</label><br>
-			<input type="date" name="date_to" id="date_to" value="<?php echo htmlentities($filterDateTo); ?>"><br><br>
+			<div class="qnr-form-row">
+				<label for="date_to">Zeitraum bis</label>
+				<input class="qnr-input" type="date" name="date_to" id="date_to" value="<?php echo htmlentities($filterDateTo); ?>">
+			</div>
 
-			<button type="submit">Filtern</button>
-			<a href="results.php" style="margin-left:10px;">Filter zurücksetzen</a>
+			<div class="qnr-action-row">
+				<button class="qnr-btn qnr-focusable" type="submit">Filtern</button>
+				<a class="qnr-btn qnr-btn--secondary qnr-focusable" href="results.php">Filter zurücksetzen</a>
+			</div>
 		</form>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Rückmeldungen</h2>
 		<?php if (empty($errors) && empty($messages)) { ?>
-			<p>Keine Rückmeldungen.</p>
+			<p class="qnr-alert qnr-alert--info">Keine Rückmeldungen.</p>
 		<?php } ?>
 		<?php if (!empty($errors)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--error">
 				<?php foreach ($errors as $errorMessage) { ?>
 					<li><?php echo htmlentities($errorMessage); ?></li>
 				<?php } ?>
 			</ul>
 		<?php } ?>
 		<?php if (!empty($messages)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--success">
 				<?php foreach ($messages as $message) { ?>
 					<li><?php echo htmlentities($message); ?></li>
 				<?php } ?>
@@ -226,65 +236,67 @@
 		<?php } ?>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Sessions</h2>
 		<?php if (empty($sessions)) { ?>
 			<p>Keine Sessions für die gewählten Filter gefunden.</p>
 		<?php } else { ?>
-			<table class="tablesorter" border="1" cellpadding="6" cellspacing="0">
-				<thead>
-					<tr>
-						<th>Session</th>
-						<th>Fragebogen</th>
-						<th>Nutzerbezug</th>
-						<th>Abschlussdatum</th>
-						<th>Score-Zusammenfassung</th>
-						<th>Report-Status</th>
-						<th>Aktion</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ($sessions as $session) { ?>
-						<?php
-							$personDisplay = 'Gast/Nicht zugeordnet';
-							if (!empty($session['user_id'])) {
-								$name = trim((string)$session['vorname'].' '.(string)$session['nachname']);
-								if ($name === '') {
-									$name = (string)$session['username'];
-								}
-								$personDisplay = $name.' (@'.(string)$session['username'].', '.(string)$session['email'].')';
-							}
-							$completionDate = $session['finished_at'] !== null ? (string)$session['finished_at'] : 'Noch nicht abgeschlossen';
-							$scoreSummaryParts = array();
-							if ((int)$session['total_score_rows'] > 0) {
-								$scoreSummaryParts[] = 'Total-Mean: '.number_format((float)$session['total_raw_mean'], 2, ',', '.');
-								$scoreSummaryParts[] = 'Total-Sum: '.number_format((float)$session['total_raw_sum'], 2, ',', '.');
-							}
-							$scoreSummaryParts[] = 'Subskalen: '.(int)$session['subscale_count'];
-							$scoreSummary = implode(' | ', $scoreSummaryParts);
-							$reportStatus = (int)$session['report_count'] > 0 ? 'Vorhanden ('.(int)$session['report_count'].')' : 'Fehlt';
-						?>
+			<div class="qnr-table-wrap">
+				<table class="tablesorter qnr-table">
+					<thead>
 						<tr>
-							<td>#<?php echo (int)$session['id']; ?><br><small>Status: <?php echo htmlentities((string)$session['completion_status']); ?></small></td>
-							<td><?php echo htmlentities((string)$session['questionnaire_title']); ?><br><small><?php echo htmlentities((string)$session['questionnaire_slug']); ?></small></td>
-							<td><?php echo htmlentities($personDisplay); ?></td>
-							<td><?php echo htmlentities($completionDate); ?></td>
-							<td><?php echo htmlentities($scoreSummary); ?></td>
-							<td><?php echo htmlentities($reportStatus); ?></td>
-							<td>
-								<form action="" method="post" onsubmit="return confirm('Session inkl. Antworten, Scores und Reports wirklich löschen?');">
-									<input type="hidden" name="session_id" value="<?php echo (int)$session['id']; ?>">
-									<button type="submit" name="delete_session" value="1">Löschen</button>
-								</form>
-							</td>
+							<th>Session</th>
+							<th>Fragebogen</th>
+							<th>Nutzerbezug</th>
+							<th>Abschlussdatum</th>
+							<th>Score-Zusammenfassung</th>
+							<th>Report-Status</th>
+							<th>Aktion</th>
 						</tr>
-					<?php } ?>
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						<?php foreach ($sessions as $session) { ?>
+							<?php
+								$personDisplay = 'Gast/Nicht zugeordnet';
+								if (!empty($session['user_id'])) {
+									$name = trim((string)$session['vorname'].' '.(string)$session['nachname']);
+									if ($name === '') {
+										$name = (string)$session['username'];
+									}
+									$personDisplay = $name.' (@'.(string)$session['username'].', '.(string)$session['email'].')';
+								}
+								$completionDate = $session['finished_at'] !== null ? (string)$session['finished_at'] : 'Noch nicht abgeschlossen';
+								$scoreSummaryParts = array();
+								if ((int)$session['total_score_rows'] > 0) {
+									$scoreSummaryParts[] = 'Total-Mean: '.number_format((float)$session['total_raw_mean'], 2, ',', '.');
+									$scoreSummaryParts[] = 'Total-Sum: '.number_format((float)$session['total_raw_sum'], 2, ',', '.');
+								}
+								$scoreSummaryParts[] = 'Subskalen: '.(int)$session['subscale_count'];
+								$scoreSummary = implode(' | ', $scoreSummaryParts);
+								$reportStatus = (int)$session['report_count'] > 0 ? 'Vorhanden ('.(int)$session['report_count'].')' : 'Fehlt';
+							?>
+							<tr>
+								<td>#<?php echo (int)$session['id']; ?><br><small>Status: <?php echo htmlentities((string)$session['completion_status']); ?></small></td>
+								<td><?php echo htmlentities((string)$session['questionnaire_title']); ?><br><small><?php echo htmlentities((string)$session['questionnaire_slug']); ?></small></td>
+								<td><?php echo htmlentities($personDisplay); ?></td>
+								<td><?php echo htmlentities($completionDate); ?></td>
+								<td><?php echo htmlentities($scoreSummary); ?></td>
+								<td><?php echo htmlentities($reportStatus); ?></td>
+								<td>
+									<form action="" method="post" onsubmit="return confirm('Session inkl. Antworten, Scores und Reports wirklich löschen?');">
+										<input type="hidden" name="session_id" value="<?php echo (int)$session['id']; ?>">
+										<button class="qnr-btn qnr-btn--danger qnr-focusable" type="submit" name="delete_session" value="1">Löschen</button>
+									</form>
+								</td>
+							</tr>
+						<?php } ?>
+					</tbody>
+				</table>
+			</div>
 		<?php } ?>
 	</section>
-	<section>
+	<section class="qnr-card">
 		<?php questionnaireRenderBackendQualityWarnings($pdo); ?>
 	</section>
-</article>
+</main>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php'); ?>

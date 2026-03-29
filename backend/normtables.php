@@ -213,25 +213,27 @@
 		}
 	}
 ?>
-<article>
-	<section>
+<main class="qnr-layout qnr-layout--backend">
+	<section class="qnr-card">
 		<?php questionnaire_show_backend_overview('Normtabellen', 'Übersicht über verfügbare Normtabellen, deren Pflege und CSV-Import.'); ?>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h1>Normtabellen per CSV importieren</h1>
 		<p>
 			Dieses Werkzeug validiert CSV-Dateien strikt anhand der Pflichtspalten, Datentypen,
 			Intervallgrenzen und Überlappungsregeln je Kombination aus <code>group_key + score_key</code>.
 		</p>
 		<p>
-			<a href="?download_template=1">CSV-Beispieldatei herunterladen</a>
+			<a class="qnr-btn qnr-btn--secondary qnr-focusable" href="?download_template=1">CSV-Beispieldatei herunterladen</a>
 		</p>
 
 		<form action="" method="post" enctype="multipart/form-data">
-			<label for="normtable_csv">CSV-Datei</label><br>
-			<input type="file" name="normtable_csv" id="normtable_csv" accept=".csv,text/csv" required><br><br>
-			<button type="submit" name="upload_normtable_csv" value="1">CSV prüfen</button>
+			<div class="qnr-form-row">
+				<label for="normtable_csv">CSV-Datei</label>
+				<input class="qnr-input" type="file" name="normtable_csv" id="normtable_csv" accept=".csv,text/csv" required>
+			</div>
+			<button class="qnr-btn qnr-focusable" type="submit" name="upload_normtable_csv" value="1">CSV prüfen</button>
 		</form>
 
 		<?php if (!empty($importSummary)) { ?>
@@ -245,25 +247,27 @@
 
 		<?php if (!empty($importErrors)) { ?>
 			<h2>Importfehler je Zeile</h2>
-			<table class="tablesorter" border="1" cellpadding="6" cellspacing="0">
-				<thead>
-					<tr>
-						<th>CSV-Zeile</th>
-						<th>Fehler</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ($importErrors as $rowNumber => $rowErrors) { ?>
+			<div class="qnr-table-wrap">
+				<table class="tablesorter qnr-table">
+					<thead>
 						<tr>
-							<td><?php echo (int)$rowNumber; ?></td>
-							<td><?php echo htmlentities(implode(' | ', $rowErrors)); ?></td>
+							<th>CSV-Zeile</th>
+							<th>Fehler</th>
 						</tr>
-					<?php } ?>
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						<?php foreach ($importErrors as $rowNumber => $rowErrors) { ?>
+							<tr>
+								<td><?php echo (int)$rowNumber; ?></td>
+								<td><?php echo htmlentities(implode(' | ', $rowErrors)); ?></td>
+							</tr>
+						<?php } ?>
+					</tbody>
+				</table>
+			</div>
 		<?php } ?>
 	</section>
-</article>
+</main>
 <?php
 	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php');
 ?>
