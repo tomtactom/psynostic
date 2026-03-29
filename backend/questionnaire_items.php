@@ -117,63 +117,81 @@
 	$itemsStmt->execute(array(':questionnaire_id' => $questionnaireId));
 	$items = $itemsStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-<article>
-	<section>
+<article class="qnr-layout qnr-layout--backend">
+	<section class="qnr-card">
 		<h1>Item-Verwaltung</h1>
 		<p><a href="questionnaires.php">&laquo; Zurück zur Fragebogenliste</a> | <a href="questionnaire_edit.php?id=<?php echo (int)$questionnaireId; ?>">Stammdaten bearbeiten</a></p>
 		<p><strong>Fragebogen:</strong> <?php echo htmlentities($questionnaire['title']); ?> (<?php echo htmlentities($questionnaire['slug']); ?>)</p>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Neues Item</h2>
 		<form action="" method="post">
 			<input type="hidden" name="item_id" value="0">
-			<label>Item-Nr.</label><br>
-			<input type="number" name="item_no" min="1" required><br><br>
+			<div class="qnr-grid qnr-grid--2">
+			<div class="qnr-form-row">
+				<label>Item-Nr.</label>
+				<input class="qnr-input" type="number" name="item_no" min="1" required>
+			</div>
 
-			<label>Itemtext</label><br>
-			<textarea name="item_text" rows="4" cols="80" required></textarea><br><br>
-
-			<label>Skalentyp</label><br>
-			<select name="scale_type" required>
+			<div class="qnr-form-row">
+				<label>Skalentyp</label>
+				<select class="qnr-select" name="scale_type" required>
 				<option value="likert">likert</option>
 				<option value="binary">binary</option>
 				<option value="custom">custom</option>
-			</select><br><br>
+				</select>
+			</div>
 
-			<label>Likert-Min</label><br>
-			<input type="number" name="likert_min" required><br><br>
+			<div class="qnr-form-row">
+				<label>Likert-Min</label>
+				<input class="qnr-input" type="number" name="likert_min" required>
+			</div>
 
-			<label>Likert-Max</label><br>
-			<input type="number" name="likert_max" required><br><br>
+			<div class="qnr-form-row">
+				<label>Likert-Max</label>
+				<input class="qnr-input" type="number" name="likert_max" required>
+			</div>
+			</div>
 
-			<label>Reverse</label>
-			<input type="checkbox" name="is_reversed" value="1"><br><br>
+			<div class="qnr-form-row">
+				<label>Itemtext</label>
+				<textarea class="qnr-textarea" name="item_text" rows="4" required></textarea>
+			</div>
 
-			<label>Subskalen-Key</label><br>
-			<input type="text" name="subscale_key" maxlength="100"><br><br>
+			<div class="qnr-form-row">
+				<label>Subskalen-Key</label>
+				<input class="qnr-input" type="text" name="subscale_key" maxlength="100">
+			</div>
 
-			<label>Pflichtfeld</label>
-			<input type="checkbox" name="is_required" value="1" checked><br><br>
+			<div class="qnr-form-row-inline">
+				<label for="new_reverse">Reverse</label>
+				<input id="new_reverse" type="checkbox" name="is_reversed" value="1">
+			</div>
 
-			<button type="submit" name="save_item" value="1">Item speichern</button>
+			<div class="qnr-form-row-inline">
+				<label for="new_required">Pflichtfeld</label>
+				<input id="new_required" type="checkbox" name="is_required" value="1" checked>
+			</div>
+
+			<button class="qnr-btn qnr-focusable" type="submit" name="save_item" value="1">Item speichern</button>
 		</form>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Rückmeldungen</h2>
 		<?php if (empty($errors) && empty($messages)) { ?>
 			<p>Keine Rückmeldungen.</p>
 		<?php } ?>
 		<?php if (!empty($errors)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--error">
 				<?php foreach ($errors as $errorMessage) { ?>
 					<li><?php echo htmlentities($errorMessage); ?></li>
 				<?php } ?>
 			</ul>
 		<?php } ?>
 		<?php if (!empty($messages)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--success">
 				<?php foreach ($messages as $message) { ?>
 					<li><?php echo htmlentities($message); ?></li>
 				<?php } ?>
@@ -181,41 +199,59 @@
 		<?php } ?>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Vorhandene Items</h2>
 		<?php foreach ($items as $item) { ?>
-			<form action="" method="post" style="border:1px solid #ccc; padding:10px; margin-bottom:15px;">
+			<form action="" method="post" class="qnr-card">
 				<input type="hidden" name="item_id" value="<?php echo (int)$item['id']; ?>">
-				<label>Item-Nr.</label><br>
-				<input type="number" name="item_no" min="1" value="<?php echo (int)$item['item_no']; ?>" required><br><br>
+				<div class="qnr-grid qnr-grid--2">
+				<div class="qnr-form-row">
+					<label>Item-Nr.</label>
+					<input class="qnr-input" type="number" name="item_no" min="1" value="<?php echo (int)$item['item_no']; ?>" required>
+				</div>
 
-				<label>Itemtext</label><br>
-				<textarea name="item_text" rows="4" cols="80" required><?php echo htmlentities((string)$item['item_text']); ?></textarea><br><br>
-
-				<label>Skalentyp</label><br>
-				<select name="scale_type" required>
+				<div class="qnr-form-row">
+					<label>Skalentyp</label>
+					<select class="qnr-select" name="scale_type" required>
 					<?php foreach ($allowedScaleTypes as $scaleTypeOption) { ?>
 						<option value="<?php echo htmlentities($scaleTypeOption); ?>" <?php echo $item['scale_type'] === $scaleTypeOption ? 'selected' : ''; ?>><?php echo htmlentities($scaleTypeOption); ?></option>
 					<?php } ?>
-				</select><br><br>
+					</select>
+				</div>
 
-				<label>Likert-Min</label><br>
-				<input type="number" name="likert_min" value="<?php echo (int)$item['likert_min']; ?>" required><br><br>
+				<div class="qnr-form-row">
+					<label>Likert-Min</label>
+					<input class="qnr-input" type="number" name="likert_min" value="<?php echo (int)$item['likert_min']; ?>" required>
+				</div>
 
-				<label>Likert-Max</label><br>
-				<input type="number" name="likert_max" value="<?php echo (int)$item['likert_max']; ?>" required><br><br>
+				<div class="qnr-form-row">
+					<label>Likert-Max</label>
+					<input class="qnr-input" type="number" name="likert_max" value="<?php echo (int)$item['likert_max']; ?>" required>
+				</div>
+				</div>
 
-				<label>Reverse</label>
-				<input type="checkbox" name="is_reversed" value="1" <?php echo (int)$item['is_reversed'] === 1 ? 'checked' : ''; ?>><br><br>
+				<div class="qnr-form-row">
+					<label>Itemtext</label>
+					<textarea class="qnr-textarea" name="item_text" rows="4" required><?php echo htmlentities((string)$item['item_text']); ?></textarea>
+				</div>
 
-				<label>Subskalen-Key</label><br>
-				<input type="text" name="subscale_key" maxlength="100" value="<?php echo htmlentities((string)$item['subscale_key']); ?>"><br><br>
+				<div class="qnr-form-row">
+					<label>Subskalen-Key</label>
+					<input class="qnr-input" type="text" name="subscale_key" maxlength="100" value="<?php echo htmlentities((string)$item['subscale_key']); ?>">
+				</div>
 
-				<label>Pflichtfeld</label>
-				<input type="checkbox" name="is_required" value="1" <?php echo (int)$item['is_required'] === 1 ? 'checked' : ''; ?>><br><br>
+				<div class="qnr-form-row-inline">
+					<label for="reverse_<?php echo (int)$item['id']; ?>">Reverse</label>
+					<input id="reverse_<?php echo (int)$item['id']; ?>" type="checkbox" name="is_reversed" value="1" <?php echo (int)$item['is_reversed'] === 1 ? 'checked' : ''; ?>>
+				</div>
 
-				<button type="submit" name="save_item" value="1">Änderungen speichern</button>
-				<button type="submit" name="delete_item" value="1" onclick="return confirm('Item wirklich löschen?');">Löschen</button>
+				<div class="qnr-form-row-inline">
+					<label for="required_<?php echo (int)$item['id']; ?>">Pflichtfeld</label>
+					<input id="required_<?php echo (int)$item['id']; ?>" type="checkbox" name="is_required" value="1" <?php echo (int)$item['is_required'] === 1 ? 'checked' : ''; ?>>
+				</div>
+
+				<button class="qnr-btn qnr-focusable" type="submit" name="save_item" value="1">Änderungen speichern</button>
+				<button class="qnr-btn qnr-btn--secondary qnr-focusable" type="submit" name="delete_item" value="1" onclick="return confirm('Item wirklich löschen?');">Löschen</button>
 			</form>
 		<?php } ?>
 	</section>

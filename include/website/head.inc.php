@@ -39,6 +39,7 @@
 	<link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
 	<meta name="msapplication-TileColor" content="<?php echo $options['maincolor']; ?>">
 	<meta name="theme-color" content="<?php echo $options['maincolor']; ?>">
+	<link rel="stylesheet" href="<?php echo $options['siteurl']; ?>/include/style.css">
 	<link rel="stylesheet" href="<?php echo $options['siteurl']; ?>/design/<?php echo $options['frontenddesign']; ?>/style.css">
 	<?php 
 		include('design/'.$options['frontenddesign'].'/head.php');

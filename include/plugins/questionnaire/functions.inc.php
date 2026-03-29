@@ -488,7 +488,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 	}
 
 	echo '<h2>Letzte Qualitätswarnungen</h2>';
-	echo '<table border="1" cellpadding="6" cellspacing="0">';
+	echo '<div class="qnr-table-wrap"><table class="qnr-table">';
 	echo '<tr><th>Session</th><th>Fragebogen</th><th>Beendet</th><th>Warnhinweise</th></tr>';
 	foreach ($sessions as $session) {
 		$quality = questionnaireEvaluateSessionQuality($pdo, $session, (int)$session['session_id']);
@@ -499,7 +499,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 		if (empty($quality['warnings'])) {
 			echo '<td>Keine Warnhinweise</td>';
 		} else {
-			echo '<td><ul style="margin:0;padding-left:18px;">';
+			echo '<td><ul class="qnr-list-compact">';
 			foreach ($quality['warnings'] as $warning) {
 				echo '<li>'.htmlentities((string)$warning).'</li>';
 			}
@@ -507,7 +507,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 		}
 		echo '</tr>';
 	}
-	echo '</table>';
+	echo '</table></div>';
 }
 
 function questionnaire_show_frontend() {
@@ -569,9 +569,19 @@ function questionnaire_show_frontend() {
 				}
 			}
 
+			if ($action === 'back_to_demographics') {
+				$postedDemographics = questionnaireReadDemographicsFromPost($demographicFields);
+				$postedItems = questionnaireReadItemsFromPost($items);
+				$demographicValidation = questionnaireValidateDemographics($demographicFields, $postedDemographics);
+				$flow['pending_demographics'] = $demographicValidation['values'];
+				$flow['pending_items'] = $postedItems;
+				$currentStep = 'demographics';
+			}
+
 			if ($action === 'finish') {
 				$postedDemographics = questionnaireReadDemographicsFromPost($demographicFields);
 				$postedItems = questionnaireReadItemsFromPost($items);
+				$flow['pending_items'] = $postedItems;
 				$demographicValidation = questionnaireValidateDemographics($demographicFields, $postedDemographics);
 				$itemValidation = questionnaireValidateItems($items, $postedItems);
 				$errors = array_merge($errors, $demographicValidation['errors'], $itemValidation['errors']);
@@ -595,6 +605,7 @@ function questionnaire_show_frontend() {
 						$demographicValidation['values'],
 						$itemValidation['values']
 					);
+					unset($flow['pending_items']);
 					$flow['last_result'] = $result;
 					$currentStep = 'done';
 					$messages[] = $result['already_completed'] ? 'Die Durchführung war bereits abgeschlossen. Ergebnis wird erneut angezeigt.' : 'Fragebogen erfolgreich abgeschlossen.';
@@ -615,73 +626,137 @@ function questionnaire_show_frontend() {
 		$currentStep = 'intro';
 	}
 
+	echo '<style>
+		.form-group { margin-bottom: 1rem; }
+		.form-field { margin-bottom: 0.9rem; }
+		.form-field label { display: inline-block; margin-bottom: 0.25rem; }
+		.field-hint { margin: 0.25rem 0 0; font-size: 0.92em; color: #555; }
+		.required-note { margin-bottom: 0.75rem; font-size: 0.95em; }
+		.required-marker { color: #b00020; font-weight: 700; }
+		.required-text { font-size: 0.9em; }
+		.likert-scale { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+		.likert-anchor { font-size: 0.9em; color: #444; }
+		.radio-group { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+		.radio-option { display: inline-flex; align-items: center; gap: 0.25rem; }
+	</style>';
+
+	$stepLabels = array(
+		'intro' => 'Einführung',
+		'demographics' => 'Demografische Angaben',
+		'items' => 'Items beantworten',
+		'done' => 'Abschluss'
+	);
+	$stepOrder = array('intro', 'demographics', 'items', 'done');
+	$currentStepPosition = array_search($currentStep, $stepOrder, true);
+	$currentStepPosition = $currentStepPosition === false ? 1 : ((int)$currentStepPosition + 1);
+
+	echo '<main class="questionnaire-frontend-main">';
 	echo '<h1>'.htmlentities((string)$questionnaire['title']).'</h1>';
+	echo '<nav aria-label="Fortschritt des Fragebogens">';
+	echo '<ol>';
+	foreach ($stepOrder as $index => $stepKey) {
+		$position = $index + 1;
+		$ariaCurrent = $stepKey === $currentStep ? ' aria-current="step"' : '';
+		echo '<li'.$ariaCurrent.'>';
+		echo '<span>'.(int)$position.'. '.htmlentities($stepLabels[$stepKey]).'</span>';
+		echo '</li>';
+	}
+	echo '</ol>';
+	echo '</nav>';
+
+	echo '<p id="questionnaire-step-help">Schritt '.(int)$currentStepPosition.' von '.count($stepOrder).'</p>';
+
 	if (!empty($messages)) {
+		echo '<div id="questionnaire-messages" aria-live="polite">';
 		echo '<ul>';
 		foreach ($messages as $message) {
 			echo '<li>'.htmlentities((string)$message).'</li>';
 		}
 		echo '</ul>';
+		echo '</div>';
 	}
 	if (!empty($errors)) {
+		echo '<div id="questionnaire-errors" role="alert" aria-live="assertive" tabindex="-1">';
 		echo '<ul>';
 		foreach ($errors as $error) {
 			echo '<li>'.htmlentities((string)$error).'</li>';
 		}
 		echo '</ul>';
+		echo '</div>';
 	}
 
 	if ($currentStep === 'intro') {
+		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Einführung</h2>';
 		echo '<p>'.nl2br(htmlentities((string)$questionnaire['intro_text'])).'</p>';
-		echo '<form method="post" action="?step=demographics">';
+		echo '<form class="qnr-card" method="post" action="?step=demographics">';
 		echo '<input type="hidden" name="action" value="start">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-		echo '<button type="submit">Fragebogen starten</button>';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Fragebogen starten</button>';
 		echo '</form>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	if ($currentStep === 'demographics') {
 		$values = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
-		echo '<h2>1) Demografische Angaben</h2>';
+		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Demografische Angaben</h2>';
 		echo '<form method="post" action="?step=items">';
 		echo '<input type="hidden" name="action" value="save_demographics">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		questionnaireRenderDemographicInputs($demographicFields, $values);
-		echo '<button type="submit">Weiter zu den Items</button>';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Weiter zu den Items</button>';
 		echo '</form>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	if ($currentStep === 'items') {
 		$demoValues = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
-		$itemValues = !empty($postedItems) ? $postedItems : array();
-		echo '<h2>2) Items beantworten</h2>';
+		$itemValues = !empty($postedItems) ? $postedItems : (isset($flow['pending_items']) && is_array($flow['pending_items']) ? $flow['pending_items'] : array());
+		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Items beantworten</h2>';
 		echo '<form method="post" action="?step=done">';
 		echo '<input type="hidden" name="action" value="finish">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		echo '<input type="hidden" name="completion_token" value="'.htmlentities((string)$flow['completion_token']).'">';
 		questionnaireRenderHiddenDemographics($demographicFields, $demoValues);
 		questionnaireRenderItems($items, $itemValues);
+		echo '<button type="submit" name="action" value="back_to_demographics" formaction="?step=demographics">Zurück</button> ';
 		echo '<button type="submit">Abschließen</button>';
 		echo '</form>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	$result = isset($flow['last_result']) && is_array($flow['last_result']) ? $flow['last_result'] : null;
-	echo '<h2>3) Abschluss</h2>';
+	echo '<section aria-labelledby="questionnaire-step-heading">';
+	echo '<h2 id="questionnaire-step-heading" tabindex="-1">Abschluss</h2>';
 	if (!$result) {
 		echo '<p>Kein Ergebnis vorhanden.</p>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
-
-	$totalMean = isset($result['total_mean']) ? (float)$result['total_mean'] : null;
-	$totalInterpretation = 'Dieses Gesamtergebnis ist eine deskriptive Zusammenfassung Ihrer Antworten und keine medizinische Diagnose.';
-	if ($totalMean !== null) {
-		if ($totalMean < 2.5) {
-			$totalInterpretation = 'Im Mittel liegen Ihre Antworten eher im unteren Bereich der Skala. Das kann auf geringere Ausprägungen in den abgefragten Bereichen hindeuten.';
-		} elseif ($totalMean < 3.5) {
-			$totalInterpretation = 'Im Mittel liegen Ihre Antworten im mittleren Bereich der Skala. Das spricht für eine ausgewogene bzw. moderate Ausprägung der abgefragten Bereiche.';
+	echo '<p>Session-ID: '.(int)$result['session_id'].'</p>';
+	echo '<p>Gesamtscore (Mittelwert): '.htmlentities((string)$result['total_mean']).'</p>';
+	echo '<p>Gesamtscore (Summe): '.htmlentities((string)$result['total_sum']).'</p>';
+	if (isset($result['quality']) && is_array($result['quality'])) {
+		echo '<h3>Qualitätshinweise</h3>';
+		if (!empty($result['quality']['warnings'])) {
+			echo '<ul class="qnr-alert">';
+			foreach ($result['quality']['warnings'] as $warning) {
+				echo '<li>'.htmlentities((string)$warning).'</li>';
+			}
+			echo '</ul>';
 		} else {
 			$totalInterpretation = 'Im Mittel liegen Ihre Antworten eher im oberen Bereich der Skala. Das kann auf stärkere Ausprägungen in den abgefragten Bereichen hindeuten.';
 		}
@@ -740,24 +815,29 @@ function questionnaire_show_frontend() {
 		echo '<p>Keine besonderen Qualitätshinweise.</p>';
 		echo '<p>Die Antworten wirken formal konsistent und auswertbar.</p>';
 	}
-	echo '</article>';
-	echo '</section>';
-
-	echo '<section aria-label="Nächste Schritte">';
-	echo '<h3>Nächste Schritte</h3>';
-	echo '<form method="post" action="?step=intro">';
+	echo '<form class="qnr-card" method="post" action="?step=intro">';
 	echo '<input type="hidden" name="action" value="start">';
 	echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-	echo '<button type="submit">Neue Durchführung starten</button>';
+	echo '<button class="qnr-btn qnr-focusable" type="submit">Neue Durchführung starten</button>';
 	echo '</form>';
-	echo '<p><a href="?step=intro">Zur Übersicht</a></p>';
-	echo '<p><strong>Optional:</strong> Ergebnis als PDF/CSV (derzeit noch nicht verfügbar).</p>';
 	echo '</section>';
+	echo '</main>';
+	questionnaireRenderFrontendFocusScript();
+}
 
-	echo '<details>';
-	echo '<summary>Details</summary>';
-	echo '<p>Session-ID: '.(int)$result['session_id'].'</p>';
-	echo '</details>';
+function questionnaireRenderFrontendFocusScript() {
+	if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+		return;
+	}
+
+	echo '<script>';
+	echo '(function () {';
+	echo 'var errorRegion = document.getElementById("questionnaire-errors");';
+	echo 'if (errorRegion) { errorRegion.focus(); return; }';
+	echo 'var heading = document.getElementById("questionnaire-step-heading");';
+	echo 'if (heading) { heading.focus(); }';
+	echo '}());';
+	echo '</script>';
 }
 
 function questionnaireLoadActiveQuestionnaire(PDO $pdo) {
@@ -942,6 +1022,8 @@ function questionnaireRenderDemographicInputs(array $fields, array $values) {
 		echo '<p>Keine demografischen Pflichtangaben konfiguriert.</p>';
 		return;
 	}
+	echo '<p class="required-note"><span class="required-marker" aria-hidden="true">*</span> Pflichtfeld (muss ausgefüllt werden)</p>';
+	echo '<div class="form-group">';
 	foreach ($fields as $field) {
 		$key = isset($field['field_key']) ? (string)$field['field_key'] : '';
 		if ($key === '') {
@@ -951,13 +1033,33 @@ function questionnaireRenderDemographicInputs(array $fields, array $values) {
 		$type = isset($field['field_type']) ? strtolower((string)$field['field_type']) : 'text';
 		$isRequired = isset($field['is_required']) && (int)$field['is_required'] === 1;
 		$current = array_key_exists($key, $values) ? (string)$values[$key] : '';
-		echo '<label for="demo_'.htmlentities($key).'">'.htmlentities($label).($isRequired ? ' *' : '').'</label><br>';
-		if ($type === 'integer' || $type === 'number') {
-			echo '<input type="number" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
-		} else {
-			echo '<input type="text" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+		$fieldId = 'demo_'.htmlentities($key);
+		$hintId = 'demo_'.htmlentities($key).'_hint';
+		$requiredText = $isRequired ? '<span class="required-marker" aria-hidden="true">*</span><span class="required-text"> Pflichtfeld</span>' : '';
+		$rules = array();
+		if (isset($field['allowed_values_json']) && $field['allowed_values_json'] !== null && trim((string)$field['allowed_values_json']) !== '') {
+			$decodedRules = json_decode((string)$field['allowed_values_json'], true);
+			if (is_array($decodedRules)) {
+				$rules = $decodedRules;
+			}
 		}
+		echo '<div class="form-field">';
+		echo '<label for="'.$fieldId.'">'.htmlentities($label).$requiredText.'</label>';
+		if ($type === 'integer' || $type === 'number') {
+			$minAttr = isset($rules['min']) && is_numeric($rules['min']) ? ' min="'.(float)$rules['min'].'"' : '';
+			$maxAttr = isset($rules['max']) && is_numeric($rules['max']) ? ' max="'.(float)$rules['max'].'"' : '';
+			$stepAttr = $type === 'integer' ? ' step="1"' : ' step="any"';
+			$inputMode = $type === 'integer' ? 'numeric' : 'decimal';
+			echo '<input type="number" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" inputmode="'.$inputMode.'"'.$minAttr.$maxAttr.$stepAttr.' aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'>';
+			echo '<p class="field-hint" id="'.$hintId.'">Numerischer Wert'.($isRequired ? ', erforderlich' : ', optional').'.</p>';
+		} else {
+			$hintText = 'Textfeld, maximal 255 Zeichen'.($isRequired ? ', erforderlich' : ', optional').'.';
+			echo '<input type="text" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'>';
+			echo '<p class="field-hint" id="'.$hintId.'">'.$hintText.'</p>';
+		}
+		echo '</div>';
 	}
+	echo '</div>';
 }
 
 function questionnaireRenderHiddenDemographics(array $fields, array $values) {
@@ -976,19 +1078,33 @@ function questionnaireRenderItems(array $items, array $values) {
 		echo '<p>Für diesen Fragebogen sind keine Items konfiguriert.</p>';
 		return;
 	}
+	echo '<p class="required-note"><span class="required-marker" aria-hidden="true">*</span> Pflichtfeld (muss beantwortet werden)</p>';
+	echo '<div class="form-group">';
 	foreach ($items as $item) {
 		$itemId = (int)$item['id'];
 		$min = (int)$item['likert_min'];
 		$max = (int)$item['likert_max'];
 		$isRequired = isset($item['is_required']) && (int)$item['is_required'] === 1;
 		$current = array_key_exists($itemId, $values) ? (string)$values[$itemId] : '';
-		echo '<fieldset style="margin-bottom:12px;"><legend>'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' *' : '').'</legend>';
+		$legendId = 'item_'.$itemId.'_legend';
+		$hintId = 'item_'.$itemId.'_hint';
+		echo '<fieldset class="form-field">';
+		echo '<legend id="'.$legendId.'">'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' <span class="required-marker" aria-hidden="true">*</span><span class="required-text"> Pflichtfeld</span>' : '').'</legend>';
+		echo '<p class="field-hint" id="'.$hintId.'">Bitte einen Wert von '.$min.' bis '.$max.' auswählen.</p>';
+		echo '<div class="likert-scale">';
+		echo '<span class="likert-anchor likert-anchor-left">trifft gar nicht zu</span>';
+		echo '<div class="radio-group" role="radiogroup" aria-labelledby="'.$legendId.'" aria-describedby="'.$hintId.'">';
 		for ($value = $min; $value <= $max; $value++) {
 			$checked = ($current !== '' && (int)$current === $value) ? 'checked' : '';
-			echo '<label style="margin-right:10px;"><input type="radio" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' '.($isRequired ? 'required' : '').'> '.$value.'</label>';
+			$radioId = 'item_'.$itemId.'_value_'.$value;
+			echo '<div class="radio-option"><input type="radio" id="'.$radioId.'" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'><label for="'.$radioId.'">'.$value.'</label></div>';
 		}
+		echo '</div>';
+		echo '<span class="likert-anchor likert-anchor-right">trifft völlig zu</span>';
+		echo '</div>';
 		echo '</fieldset>';
 	}
+	echo '</div>';
 }
 
 function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $questionnaire, array $demographics, array $responses) {
