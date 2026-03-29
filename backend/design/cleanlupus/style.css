@@ -1,0 +1,561 @@
+/* 
+	############# - INFO - #############
+	####################################
+*/
+		$name: cleanlupus;
+		$author: Tom Aschmann;
+		$version: 0.2;
+		$description: Standart LupusGUI Frontend Design;
+/*	
+	####################################
+*/
+
+/* 
+	####################################
+		Root Design Start
+	####################################
+*/
+
+* {
+	margin: 0px; 
+	padding: 0px;
+}
+html,
+body {
+	margin: 0;
+    padding: 0;
+	-moz-hyphens: auto !important;
+    -o-hyphens: auto !important;
+    -webkit-hyphens: auto !important;
+    -ms-hyphens: auto !important;
+    hyphens: auto !important;
+}
+
+/* 
+	####################################
+		Root     Design Stop
+		Standart Design Start
+	####################################
+*/
+
+table {
+    border-collapse: collapse;
+	background: var(--mainbackgroundcolor);
+    border: 1px solid var(--maincolor);
+    border-radius: 2px;
+}
+
+table td,
+table th {
+    padding: 5px 8px;
+}
+
+table thead th {
+    background-color: var(--maincolor);
+    color: var(--mainbackgroundcolor);
+    font-weight: bold;
+	cursor: pointer;
+}
+
+table thead th:first-child {
+    border: none;
+}
+
+table tbody td {
+    border-left: 1px solid var(--maincolor);
+}
+
+table tbody td:first-child {
+    border-left: none;
+}
+
+table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+input[type=text],
+input[type=textarea],
+input[type=search],
+input[type=password],
+input[type=tel],
+input[type=url],
+input[type=email],
+input[type=image],
+input[type=number],
+input[type=date],
+input[type=datetime-local],
+input[type=week],
+input[type=time],
+input[type=image],
+input[type=file],
+input[type=month],
+select, 
+textarea {
+    -moz-appearance: none;
+    -webkit-appearance: none;
+    -ms-appearance: none;
+    background: var(--mainbackgroundcolor);
+    border-radius: 6px;
+    border: solid 2px var(--maincolor);
+    color: inherit;
+    display: block;
+    outline: 0;
+    padding: 0 1em;
+    margin-bottom: 10px;
+    text-decoration: none;
+    width: 100%;
+    height: 3em;
+}
+
+input[type=text],
+input[type=textarea],
+input[type=search],
+input[type=password],
+input[type=tel],
+input[type=url],
+input[type=email],
+input[type=image],
+input[type=number],
+input[type=date],
+input[type=datetime-local],
+input[type=week],
+input[type=time],
+input[type=image],
+input[type=file],
+input[type=month] {
+	line-height: 2px;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+input[type="tel"]:focus,
+select:focus,
+textarea:focus {
+	border-color: var(--maincolor);
+}
+
+select option {
+	color: var(--maincolor);
+	background: var(--mainbackgroundcolor);
+}
+
+select option:hover,
+select option:active,
+select option::selected {
+	color: var(--mainbackgroundcolor);
+	background: var(--maincolor);
+}
+
+blockquote {
+    padding: 10px 20px;
+    margin: 0 0 20px;
+    border-left: 20px double var(--maincolor);
+    background: #ECF0F1;
+    border-radius:8px;
+}
+
+.message {
+    margin: 10px auto;
+    padding: 12px;
+    background-color: var(--maincolor);
+    color: white;
+    border-radius: 4px;
+}
+
+.message span:first-child {
+    margin-left: 15px;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    transition: 0.3s;
+}
+
+.message span:first-child:hover {
+    color: black;
+}
+
+label {
+    display: inline-block;
+    width: 400px;
+    margin-right: 40px;
+}
+
+button,
+input[type=button],
+input[type=submit],
+input[type=reset] {
+	background: var(--maincolor);
+	border-radius: 12px;
+	color: var(--mainbackgroundcolor);
+	font-size: 1.2rem;
+	padding: 10px 40px 10px 40px;
+	text-decoration: none;
+	border: none;
+}
+
+button:hover,
+input[type=button]:hover,
+input[type=submit]:hover,
+input[type=reset]:hover {
+	background-color: var(--mainhovercolor);
+	text-decoration: none;
+}
+
+input[type=color] {
+	border-radius: 12px;
+	border: solid 2px var(--maincolor);
+}
+
+a {
+    color: var(--maincolor);
+    text-decoration: underline var(--maincolor);
+    font-weight: bold;
+    transition: all 200ms;
+}
+
+a:hover {
+	color: var(--mainfontcolor);
+}
+
+.myprofile_box {
+    display: inline-block;
+    background-color: #ECF0F1;
+    height: 400px;
+    padding: 10px;
+    border-radius: 4px;
+    width: 500px;
+    margin: auto;
+    position: relative;
+    overflow: hidden;
+}
+
+.myprofile_background {
+    background-color: white;
+    border-radius: 12px;
+    width: 80%;
+    margin-left: 10%;
+    height: 100%;
+    margin-top: 50px;
+}
+
+.myprofile_content {
+    position: relative;
+    bottom: 50px;
+    background: transparent;
+    width: 100%;
+    height: 100%;
+}
+
+.myprofile_name {
+    float: right;
+    margin-right: 20px;
+}
+
+.myprofile_biography {
+    width: 80%;
+    min-height: 100px;
+    border-radius: 12px;
+    background-color: #ECF0F1;
+    padding: 3%;
+    margin-left: 8%;
+    margin-top: 40px;
+}
+
+.profile_background {
+    margin: 10px auto auto auto;
+    background-color: #ECF0F1;
+    padding: 0.5%;
+}
+
+.profile_spacebox {
+    display: none;
+    background-color: #ECF0F1;
+    height: 400px;
+    padding: 10px;
+    border-radius: 4px;
+    width: 600px;
+}
+
+.profile_spacebox_properties {
+    background-color: white;
+    border-radius: 12px;
+    width: 90%;
+    margin-left: 5%;
+    margin-top: 100px;
+    height: 80%;
+}
+
+
+/* 
+	####################################
+		Standart Design Stop
+		Header   Design Start
+	####################################
+*/
+
+header {
+    background: var(--mainbackgroundcolor);
+    width: 100%;
+    height: 60px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    border-bottom: 4px solid var(--maincolor);
+    z-index: 100;
+    -moz-user-select: none;
+    user-select: none;
+}
+
+header img {
+    margin: 10px;
+    float: left;
+    height: 40px;
+    width: auto;
+    display: block;
+}
+
+header nav {
+    float: right;
+    padding: 10px;
+}
+
+header nav:nth-child(2) > a:nth-child(1) {
+    display: hidden;
+    width: 40px;
+    height: 40px;
+    background: transparent url(../../../include/images/menu-icon.png) center;
+}
+
+header nav ul {
+    list-style: none;
+}
+
+header nav ul li {
+    display: inline-block;
+    float: left;
+    padding: 14px
+}
+
+header nav ul li a {
+
+    color: var(--maincolor);
+    text-decoration: none;
+    font-weight: bold;
+    transition: all 250ms;
+}
+
+header nav ul li a:hover {
+    color: var(--headerfontcolor);
+}
+
+/* 
+	####################################
+		Header Design Stop
+		Main   Design Start
+	####################################
+*/
+
+article {
+	margin-top: 80px;
+	margin-bottom: 60px;
+	width: 100%;
+}
+
+section {
+	padding: 15px 15%;
+}
+
+.piechart {
+    width: 50%;
+    float: left;
+    padding-bottom: 30px;
+}
+
+.linechart {
+    height: 500px;
+    padding-bottom: 30px;
+}
+
+/* 
+	####################################
+		Main   Design Stop
+		Footer Design Start
+	####################################
+*/
+
+footer {
+    background: var(--mainbackgroundcolor);
+    height: 100px;
+    width: 100%;
+    float: left;
+	text-align: center;
+	border-top: 6px solid var(--maincolor);
+}
+
+footer div {
+    width: 50%;
+    float: left;
+    top: 50%;
+    transform: translateY(-50%);
+    position: relative;
+}
+
+@keyframes pulse-animation {
+    0%,
+	100%,
+	30%,
+	50%,
+	60%,
+	80% {
+        transform: scale(1);
+    }
+    40% {
+        transform: scale(1.15);
+    }
+    70% {
+        transform: scale(1.08);
+    }
+}
+
+@-webkit-keyframes androidBugfix {
+    from,
+	to {
+        padding: 0;
+    }
+}
+
+#logopuls {
+    background: url(../../../include/images/logo.svg);
+    display: inline-block;
+    animation-name: pulse-animation;
+    animation-duration: 3s;
+    transform-origin: 70% 70%;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
+/* 
+	####################################
+		Footer Design Stop
+		@media Design Start
+	####################################
+*/
+
+@media only screen and (max-width: 1400px) {
+    label {
+        display: block;
+        width: 100%;
+    }
+}
+
+@media only screen and (max-width: 1000px) {
+
+    header {
+        position: absolute;
+    }
+
+    header nav:nth-child(2) > a:nth-child(1) {
+        display: inline-block;
+    }
+
+    header nav ul,
+    header nav:active ul {
+        display: none;
+        position: absolute;
+        padding: 20px;
+        background: var(--mainbackgroundcolor);
+        border: 5px solid var(--maincolor);
+        right: 20px;
+        top: 60px;
+        width: 50%;
+        border-radius: 4px 0 4px 4px;
+    }
+
+    header nav ul li {
+        text-align: center;
+        width: 100%;
+        padding: 10px 0;
+        margin: 0;
+    }
+
+    header nav:hover ul {
+        display: block;
+    }
+
+    section {
+        padding:10px;
+    }
+}
+
+@media only screen and (max-width: 650px) {
+    .piechart {
+        width: 100%;
+    }
+
+    .linechart {
+        height: 300px;
+    }
+
+	.myprofile_box {
+        max-width: 96%;
+        margin: auto;
+    }
+
+    .myprofile_name {
+        float: left;
+        margin: 0 0 0 10%;
+    }
+}
+
+@media only screen and (max-width: 300px) {
+
+    header {
+        height: 56px;
+        border-bottom: 3px solid var(--maincolor);
+        font-size: 0.8rem
+    }
+
+    header nav:nth-child(2) > a:nth-child(1) {
+        width: 30px;
+        height: 30px;
+    }
+
+	article {
+		padding: 80px 10%;
+	}
+
+}
+
+
+@media only screen and (max-width: 175px) {
+
+    header img {
+        display: none;
+    }
+
+    header nav ul,
+    header nav:active ul {
+        padding: 10px;
+        border: 3px solid var(--maincolor);
+        right: 3px;
+        top: 50px;
+        width: 50%;
+        border-radius: 2px 0 2px 2px;
+
+    }
+
+    header nav ul li {
+        padding: 5px 0;
+    }
+
+}
+
+
+@media only screen and (max-width: 85px) {
+
+    header {
+        font-size: 0.7rem
+    }
+
+}

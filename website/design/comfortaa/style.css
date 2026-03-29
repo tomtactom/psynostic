@@ -1,0 +1,662 @@
+/* 
+	############# - INFO - #############
+	####################################
+*/
+
+$name: Comfortaa;
+$author: Tom Aschmann;
+$version: 0.2;
+$description: Offizielles LupusGUI Frontenddesign;
+/*	
+	####################################
+*/
+
+/* 
+	####################################
+		Root Design Start
+	####################################
+*/
+
+* {
+    margin: 0px;
+    padding: 0px;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+	-moz-hyphens: auto !important;
+    -o-hyphens: auto !important;
+    -webkit-hyphens: auto !important;
+    -ms-hyphens: auto !important;
+    hyphens: auto !important;
+}
+
+body {
+    background: var(--mainbackgroundcolor);
+    background-size: cover;
+}
+
+/* 
+	####################################
+		Root     Design Stop
+		Standart Design Start
+	####################################
+*/
+
+table td,
+table th {
+    padding: 5px 8px;
+}
+
+table thead th {
+    background-color: var(--maincolor);
+    color: var(--mainbackgroundcolor);
+    font-weight: bold;
+    cursor: pointer;
+}
+
+table thead th:first-child {
+    border: none;
+}
+
+table tbody td {
+    border-left: 1px solid var(--maincolor);
+}
+
+table tbody td:first-child {
+    border-left: none;
+}
+
+table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+label {
+    display: block;
+}
+
+input {
+    outline: none;
+    padding: 6px;
+}
+
+input[type=text],
+input[type=textarea],
+input[type=search],
+input[type=password],
+input[type=tel],
+input[type=url],
+input[type=email],
+input[type=image],
+input[type=number],
+input[type=date],
+select,
+textarea {
+    margin: 5px auto;
+    border-radius: 6px;
+    border: 2px solid #e7e7e7;
+    padding-left: 10px;
+    font-size: 0.9rem;
+    transition: ease-in-out all 270ms;
+	max-width: 100%;
+}
+
+input[type=text]:focus,
+input[type=textarea]:focus,
+input[type=search]:focus,
+input[type=password]:focus,
+input[type=tel]:focus,
+input[type=url]:focus,
+input[type=email]:focus,
+input[type=image]:focus,
+input[type=number]:focus,
+input[type=date]:focus,
+textarea:focus {
+    background-color: #f0f0f0;
+    border-color: var(--maincolor);
+}
+
+fieldset {
+    border: none;
+}
+
+button {
+    background-color: var(--maincolor);
+    border: none;
+    display: inline-block;
+    padding: 12px 32px;
+    margin: 10px;
+    color: #fff;
+    cursor: pointer;
+    display: block;
+    border-radius: 6px;
+}
+
+#logopuls {
+    background: url(../../../include/images/logo.svg);
+    display: inline-block;
+    animation-name: pulse-animation;
+    animation-duration: 3s;
+    transform-origin: 70% 70%;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+}
+
+a {
+    color: var(--maincolor);
+    text-decoration: none;
+}
+
+.animated-text {
+    overflow: hidden;
+    word-wrap: break-word;
+    white-space: nowrap;
+    animation: typing 3s steps(48) forwards;
+}
+
+.message {
+    margin: 15px auto;
+    padding: 12px;
+    background-color: var(--maincolor);
+    color: white;
+    border-radius: 2px;
+}
+
+.message span:first-child {
+    margin-left: 15px;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    transition: 0.3s;
+}
+
+.message span:first-child:hover {
+    color: black;
+}
+
+@keyframes typing {
+    from {
+        width: 0;
+    }
+    to {
+        width: 48ch;
+    }
+}
+
+.myprofile_box {
+    display: inline-block;
+    background-color: #ECF0F1;
+    height: 400px;
+    padding: 10px;
+    border-radius: 4px;
+    width: 500px;
+    margin: auto;
+    position: relative;
+    overflow: hidden;
+}
+
+.myprofile_background {
+    background-color: white;
+    border-radius: 12px;
+    width: 80%;
+    margin-left: 10%;
+    height: 100%;
+    margin-top: 50px;
+}
+
+.myprofile_content {
+    position: relative;
+    bottom: 50px;
+    background: transparent;
+    width: 100%;
+    height: 100%;
+}
+
+.myprofile_name {
+    float: right;
+    margin-right: 20px;
+}
+
+.myprofile_biography {
+    width: 80%;
+    min-height: 100px;
+    border-radius: 12px;
+    background-color: #ECF0F1;
+    padding: 3%;
+    margin-left: 8%;
+    margin-top: 40px;
+}
+
+.profile_background {
+    margin: 10px auto auto auto;
+    background-color: #ECF0F1;
+    padding: 0.5%;
+}
+
+.profile_spacebox {
+    display: none;
+    background-color: #ECF0F1;
+    height: 400px;
+    padding: 10px;
+    border-radius: 4px;
+    width: 600px;
+}
+
+.profile_spacebox_properties {
+    background-color: white;
+    border-radius: 12px;
+    width: 90%;
+    margin-left: 5%;
+    margin-top: 100px;
+    height: 80%;
+}
+
+/* 
+	####################################
+		Standart Design Stop
+		Header   Design Start
+	####################################
+*/
+
+header {
+    background: #fff;
+    width: 100%;
+    height: 80px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    border-bottom: 4px solid var(--maincolor);
+    z-index: 100;
+    -moz-user-select: none;
+    user-select: none;
+}
+
+header img {
+    margin: 16px;
+    float: left;
+    height: 50px;
+    width: auto;
+    display: block;
+}
+
+header nav {
+    float: right;
+    padding: 20px;
+}
+
+header>nav>a {
+    display: none;
+    width: 40px;
+    height: 40px;
+    background: transparent url(menu-icon.png) center;
+}
+
+header nav ul {
+    list-style: none;
+}
+
+header nav ul li {
+    display: inline-block;
+    float: left;
+    padding: 10px
+}
+
+header nav ul li a {
+    color: var(--maincolor);
+    text-decoration: none;
+    font-weight: bold;
+    transition: all 250ms;
+}
+
+header nav ul li a:hover {
+    color: #444444;
+}
+
+div#header {
+    height: 150px;
+    padding: 100px;
+    background-color: var(--maincolor);
+    border-top: 3px solid #ffffff;
+}
+
+div#header h1,
+div#header p {
+    color: var(--mainbackgroundcolor);
+    text-align: center;
+}
+
+/* 
+	####################################
+		Header Design Stop
+		Main   Design Start
+	####################################
+*/
+
+article {
+    margin-top: 70px;
+}
+
+article main {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+article main section {
+    background-color: rgba(255, 255, 255, 0.89);
+    width: 360px;
+    min-height: 480px;
+    margin: 54px;
+    padding: 10px;
+    border-radius: 36px;
+    border: 1.5px outset #95989A;
+    box-shadow: 1px 3px 6px 1px #95989A;
+    position: relative;
+}
+
+article main section h1:first-child {
+    text-align: center;
+    font-size: 2rem;
+}
+
+article main section ul {
+    list-style-image: url(right.png);
+    line-height: 2;
+}
+
+article main section h1:last-child {
+    display: block;
+    font-family: 'Papyrus', Helvetica, Arial, sans-serif;
+    font-size: 3.2rem;
+    color: var(--maincolor);
+    position: absolute;
+    left: 15%;
+    margin-bottom: 0;
+    margin-top: 0;
+    bottom: 0;
+}
+
+article section {
+    background-color: rgba(255, 255, 255, 0.95);
+    min-height: 400px;
+    margin: 40px;
+    padding: 15px 11%;
+    border-radius: 32px;
+    border: 2px solid white;
+    box-shadow: 1px 3px 6px 1px #95989A;
+}
+
+article section h1:first-child {
+    text-align: center;
+    font-size: 2rem;
+}
+
+article section p {
+    font-size: 0.95rem;
+    color: #0e0f0f;
+}
+
+/* 
+	####################################
+		Main   Design Stop
+		Footer Design Start
+	####################################
+*/
+
+footer {
+    font-size: 0.777rem;
+    color: #949499;
+    line-height: 1.5;
+    padding-bottom: 50px;
+    margin-top: 25px;
+    background-color: #FFFFFF;
+}
+
+footer>img {
+    display: block;
+    max-height: 100px;
+    margin: 30px auto;
+    max-width: auto;
+    height: auto;
+    vertical-align: middle;
+    border: 0;
+}
+
+footer section {
+    margin-right: auto;
+    margin-left: auto;
+    padding-left: 15px;
+    padding-right: 15px;
+    max-width: 100%;
+}
+
+footer>section>aside {
+    text-align: right;
+    max-width:96%;
+}
+
+footer>section>aside img {
+    opacity: 0.4;
+}
+
+footer>section>aside img:hover {
+    opacity: 0.2;
+}
+
+footer>section>nav {
+    margin-left: -15px;
+    margin-right: -15px;
+}
+
+footer>section>aside:nth-child(3) {
+    clear: both;
+}
+
+footer>section>aside:nth-child(3)>div {
+    float: right;
+    text-align: left;
+}
+
+footer>section>aside:nth-child(3)>address {
+    float: left;
+    text-align: right;
+}
+
+footer>section>nav>section {
+    padding: 0;
+    width: 41.66667%;
+    float: left;
+    position: relative;
+    min-height: 1px;
+}
+
+footer>section>nav>section:nth-child(2) {
+    padding: 0;
+    width: 41.66667%;
+    margin-left: 16.66667%;
+    float: left;
+    position: relative;
+    text-align: right;
+}
+
+footer section aside address p {
+    font-size: 0.8em;
+}
+
+footer section nav section ul {
+    margin-left: 15px;
+    margin-bottom: 0;
+    padding: 0;
+    list-style: none;
+}
+
+footer section nav section ul li {
+    margin-right: 15px;
+    margin-bottom: 0px;
+    margin-bottom: 15px;
+    font-size: 1em;
+}
+
+footer section nav section ul li a {
+    color: #4C9CF1;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1.2em;
+    transition: all 250ms;
+}
+
+footer section nav section ul li a:hover {
+    color: #939399;
+}
+
+/* 
+	####################################
+		Footer Design Stop
+		@media Design Start
+	####################################
+*/
+
+@media (max-width: 1260px) {
+    footer section nav section ul li {
+        display: block;
+    }
+	
+    footer>img {
+        margin: 30px auto;
+    }
+	
+    footer section {
+        width: 970px;
+    }
+}
+
+@media (max-width: 1100px) {
+    .animated-text {
+        overflow: none;
+        word-wrap: normal;
+        white-space: normal;
+        animation: none;
+    }
+}
+
+@media (max-width: 992px) {
+    footer>img {
+        width: 90px;
+    }
+	
+    footer section {
+        width: 730px;
+    }
+}
+
+@media (max-width: 748px) {
+    footer {
+        font-size: 10px;
+    }
+	
+    footer>img {
+        width: 80px;
+    }
+	
+    footer section {
+        width: 380px;
+    }
+	
+    footer>section>aside:nth-child(3) {
+        clear: both;
+    }
+}
+
+@media only screen and (max-width: 640px) {
+    header {
+        position: absolute;
+    }
+	
+    header>nav>a {
+        display: inline-block;
+    }
+	
+    header nav ul,
+    header nav:active ul {
+        display: none;
+        position: absolute;
+        padding: 20px;
+        background: #fff;
+        border: 5px solid #444;
+        right: 20px;
+        top: 60px;
+        width: 50%;
+        border-radius: 4px 0 4px 4px;
+    }
+	
+    header nav ul li {
+        text-align: center;
+        width: 100%;
+        padding: 10px 0;
+        margin: 0;
+    }
+	
+    header nav:hover ul {
+        display: block;
+    }
+	
+	.myprofile_box {
+        max-width: 96%;
+        margin: auto;
+    }
+
+    .myprofile_name {
+        float: left;
+        margin: 0 0 0 10%;
+    }
+}
+
+@media only screen and (max-width: 500px) {
+	div#header {
+		height: 200px;
+		padding: 65px;
+	}
+	
+    article main section {
+        margin: 7px;
+		padding: 10px 5%;
+    }
+	
+	article section {
+        margin: 7px;
+		padding: 10px 5%;
+    }
+	
+	article main section h1:last-child {
+		font-size: 3rem;
+		left: 13%;
+	}
+	
+	footer>section>nav>section:nth-child(2) {
+			margin-left: 10px;
+	}
+}
+
+@media only screen and (max-width: 410px) {
+	div#header {
+		padding: 40px;
+	}
+	
+	article main section h1:last-child {
+		font-size: 2.9rem;
+		left: 16.5%;
+	}
+	
+	footer section {
+        width: 320px;
+    }
+}
+
+/* 
+	####################################
+		@media Design Stop
+	####################################
+*/

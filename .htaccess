@@ -1,0 +1,24 @@
+RewriteEngine On
+	RewriteBase /
+	RewriteCond %{REQUEST_FILENAME}.php -f
+	RewriteRule (.*) $1.php
+
+<FilesMatch "\.inc.php$">
+	Require all denied
+</FilesMatch>
+
+	RewriteBase /
+    RewriteRule ^/?backend/profile@(.+)$ backend/profile.php?user=$1 [L]
+	RewriteCond %{REQUEST_FILENAME}.php -f
+	RewriteRule (.*) $1.php
+
+	RewriteBase /
+    RewriteRule ^/?profile@(.+)$ profile.php?user=$1 [L]
+	RewriteCond %{REQUEST_FILENAME}.php -f
+	RewriteRule (.*) $1.php
+
+	RewriteCond %{REQUEST_URI} !^/website/
+	RewriteCond %{REQUEST_FILENAME} !-f
+	RewriteCond %{REQUEST_FILENAME} !-d
+	RewriteRule ^(.*)$ /website/$1
+	RewriteRule ^(/)?$ website/index.php [L]
