@@ -88,8 +88,15 @@ function getStatistic($mode) {
 function add($link) {
   if((isset($_COOKIE['allowCookies'])) && ($_COOKIE['allowCookies'] == "true")) {
     global $pdo;
+    $browser = getUserBrowser();
+    $country = getUserInfo(getUserIP(), "Country");
+    if ($country === null || $country === '') {
+      $country = 'Unknown';
+    }
+    $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : 'Unknown';
+
     $statement = $pdo->prepare("INSERT INTO Statistiken (link, wasonsite, country, browsername, browserversion, platform, useragent) VALUES (:link, :wasonsite, :country, :browsername, :browserversion, :platform, :useragent)");
-    $statement->execute(array('link' => $link, 'wasonsite' => checkWasOnSite(), 'country' => getUserInfo(getUserIP(), "Country"), 'browsername' => getUserBrowser()['name'], 'browserversion' => getUserBrowser()['version'], 'platform' => getUserBrowser()['platform'], 'useragent' => $_SERVER['HTTP_USER_AGENT']));
+    $statement->execute(array('link' => $link, 'wasonsite' => checkWasOnSite(), 'country' => $country, 'browsername' => $browser['name'], 'browserversion' => $browser['version'], 'platform' => $browser['platform'], 'useragent' => $userAgent));
   }
 }
 

@@ -55,7 +55,11 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
 			if($upd_answer != '') {
 				// speichern
 				$update = $db->prepare("UPDATE `faq` SET `question`=?, `answer`=?, `answerdate`= NOW(), `email`=? WHERE id=? LIMIT 1");	
-				$update->bind_param('sssi', strval($upd_question), strval($upd_answer), strval($upd_email), intval($upd_id));
+				$upd_question_value = (string)$upd_question;
+				$upd_answer_value = (string)$upd_answer;
+				$upd_email_value = (string)$upd_email;
+				$upd_id_value = (int)$upd_id;
+				$update->bind_param('sssi', $upd_question_value, $upd_answer_value, $upd_email_value, $upd_id_value);
 				if(!empty($upd_email)) {
 			$mailtext = '
 	<html lang="de">
@@ -108,7 +112,10 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
 			} else {
 				//Keine Antwort gesetzt
 				$update = $db->prepare("UPDATE `faq` SET `question`=?, `email`=? WHERE id=? LIMIT 1");	
-				$update->bind_param('ssi', strval($upd_question), strval($upd_email), intval($upd_id));
+				$upd_question_value = (string)$upd_question;
+				$upd_email_value = (string)$upd_email;
+				$upd_id_value = (int)$upd_id;
+				$update->bind_param('ssi', $upd_question_value, $upd_email_value, $upd_id_value);
 			}
 
             if ($update->execute()) {

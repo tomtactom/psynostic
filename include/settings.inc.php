@@ -23,7 +23,7 @@
 	} else {
 		$options['robots'] = false;
 	}
-	if ($showFormular === "") {
+	if (!isset($showFormular) || $showFormular === "") {
 		$showFormular = "0";
 	} else {
 		$showFormular = "1";
