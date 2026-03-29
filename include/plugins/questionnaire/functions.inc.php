@@ -488,7 +488,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 	}
 
 	echo '<h2>Letzte Qualitätswarnungen</h2>';
-	echo '<table border="1" cellpadding="6" cellspacing="0">';
+	echo '<div class="qnr-table-wrap"><table class="qnr-table">';
 	echo '<tr><th>Session</th><th>Fragebogen</th><th>Beendet</th><th>Warnhinweise</th></tr>';
 	foreach ($sessions as $session) {
 		$quality = questionnaireEvaluateSessionQuality($pdo, $session, (int)$session['session_id']);
@@ -499,7 +499,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 		if (empty($quality['warnings'])) {
 			echo '<td>Keine Warnhinweise</td>';
 		} else {
-			echo '<td><ul style="margin:0;padding-left:18px;">';
+			echo '<td><ul class="qnr-list-compact">';
 			foreach ($quality['warnings'] as $warning) {
 				echo '<li>'.htmlentities((string)$warning).'</li>';
 			}
@@ -507,7 +507,7 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 		}
 		echo '</tr>';
 	}
-	echo '</table>';
+	echo '</table></div>';
 }
 
 function questionnaire_show_frontend() {
@@ -689,10 +689,10 @@ function questionnaire_show_frontend() {
 		echo '<section aria-labelledby="questionnaire-step-heading">';
 		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Einführung</h2>';
 		echo '<p>'.nl2br(htmlentities((string)$questionnaire['intro_text'])).'</p>';
-		echo '<form method="post" action="?step=demographics">';
+		echo '<form class="qnr-card" method="post" action="?step=demographics">';
 		echo '<input type="hidden" name="action" value="start">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-		echo '<button type="submit">Fragebogen starten</button>';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Fragebogen starten</button>';
 		echo '</form>';
 		echo '</section>';
 		echo '</main>';
@@ -708,7 +708,7 @@ function questionnaire_show_frontend() {
 		echo '<input type="hidden" name="action" value="save_demographics">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		questionnaireRenderDemographicInputs($demographicFields, $values);
-		echo '<button type="submit">Weiter zu den Items</button>';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Weiter zu den Items</button>';
 		echo '</form>';
 		echo '</section>';
 		echo '</main>';
@@ -752,7 +752,7 @@ function questionnaire_show_frontend() {
 	if (isset($result['quality']) && is_array($result['quality'])) {
 		echo '<h3>Qualitätshinweise</h3>';
 		if (!empty($result['quality']['warnings'])) {
-			echo '<ul>';
+			echo '<ul class="qnr-alert">';
 			foreach ($result['quality']['warnings'] as $warning) {
 				echo '<li>'.htmlentities((string)$warning).'</li>';
 			}
@@ -768,10 +768,10 @@ function questionnaire_show_frontend() {
 		}
 		echo '</ul>';
 	}
-	echo '<form method="post" action="?step=intro">';
+	echo '<form class="qnr-card" method="post" action="?step=intro">';
 	echo '<input type="hidden" name="action" value="start">';
 	echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-	echo '<button type="submit">Neue Durchführung starten</button>';
+	echo '<button class="qnr-btn qnr-focusable" type="submit">Neue Durchführung starten</button>';
 	echo '</form>';
 	echo '</section>';
 	echo '</main>';
