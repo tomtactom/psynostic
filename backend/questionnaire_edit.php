@@ -28,9 +28,11 @@
 		}
 
 		if ($rulesInput !== '') {
-			json_decode($rulesInput, true);
+			$rulesDecoded = json_decode($rulesInput, true);
 			if (json_last_error() !== JSON_ERROR_NONE) {
 				$errors[] = 'Standardregeln müssen valides JSON sein.';
+			} elseif (isset($rulesDecoded['quality_parameters']) && !is_array($rulesDecoded['quality_parameters'])) {
+				$errors[] = 'quality_parameters muss ein JSON-Objekt sein.';
 			}
 		}
 
@@ -76,6 +78,18 @@
 
 			<label for="standard_rules_json">Standardregeln (JSON)</label><br>
 			<textarea name="standard_rules_json" id="standard_rules_json" rows="10" cols="80"><?php echo htmlentities((string)$questionnaire['standard_rules_json']); ?></textarea><br><br>
+			<p><strong>Beispiel für Qualitätsparameter:</strong></p>
+			<pre style="white-space:pre-wrap;">{
+  "quality_parameters": {
+    "total_minimum_answered_ratio": 0.8,
+    "subscale_minimum_answered_ratio": { "depression": 0.75 },
+    "speeding": { "min_seconds": 120, "max_seconds": 2400 },
+    "inconsistency_pairs": [
+      { "item_no_left": 3, "item_no_right": 9, "max_abs_diff": 2 }
+    ],
+    "reliability": { "enabled": true }
+  }
+}</pre>
 
 			<button type="submit" name="save_questionnaire" value="1">Speichern</button>
 		</form>

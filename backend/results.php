@@ -10,5 +10,8 @@
 	<section>
 		<?php questionnaire_show_backend_overview('Ergebnisse', 'Auswertung und Einsicht von Fragebogen-Ergebnissen.'); ?>
 	</section>
+	<section>
+		<?php questionnaireRenderBackendQualityWarnings($pdo); ?>
+	</section>
 </article>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php'); ?>
