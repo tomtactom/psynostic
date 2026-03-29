@@ -1,5 +1,6 @@
 	<ul>
 		<li><a href="<?php echo $options['siteurl']; ?>">Startseite</a></li>
+		<li><a href="<?php echo $options['siteurl']; ?>/questionnaires">Fragebögen</a></li>
 		<?php if (is_checked_in()) { ?>
 		<li><a href="<?php echo $options['siteurl']; ?>/backend">Administrationsbereich</a></li>
 		<li><a href="<?php echo $options['siteurl']; ?>/profile">Profil</a></li>

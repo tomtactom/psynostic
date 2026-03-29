@@ -7,7 +7,7 @@
 ?>
 <article>
 	<section>
-		<?php questionnaire_show_frontend(); ?>
+		<?php questionnaire_show_frontend('fill'); ?>
 	</section>
 </article>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/website/footer.inc.php'); ?>
