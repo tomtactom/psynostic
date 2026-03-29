@@ -464,6 +464,8 @@ function questionnaire_get_urls() {
 	global $options;
 	return [
 		'questionnaires' => $options['siteurl'].'/backend/questionnaires.php',
+		'new_questionnaire' => $options['siteurl'].'/backend/questionnaires.php#create-questionnaire-heading',
+		'item_builder' => $options['siteurl'].'/backend/questionnaire_items.php',
 		'normtables' => $options['siteurl'].'/backend/normtables.php',
 		'results' => $options['siteurl'].'/backend/results.php',
 		'frontend_overview' => $options['siteurl'].'/questionnaires',
@@ -477,9 +479,11 @@ function questionnaire_show_backend_overview($title, $description) {
 	echo '<h1>'.$title.'</h1>';
 	echo '<p>'.$description.'</p>';
 	echo '<ul>';
-	echo '<li><a href="'.$urls['questionnaires'].'">Fragebögen</a></li>';
-	echo '<li><a href="'.$urls['normtables'].'">Normtabellen</a></li>';
+	echo '<li><a href="'.$urls['questionnaires'].'">Fragebögen – Übersicht</a></li>';
+	echo '<li><a href="'.$urls['new_questionnaire'].'">Neuer Fragebogen</a></li>';
+	echo '<li><a href="'.$urls['item_builder'].'">Item-Builder</a></li>';
 	echo '<li><a href="'.$urls['results'].'">Ergebnisse</a></li>';
+	echo '<li><a href="'.$urls['normtables'].'">Normtabellen</a></li>';
 	echo '<li><a href="'.$urls['frontend_overview'].'">Frontend-Übersicht</a></li>';
 	echo '</ul>';
 }
@@ -535,7 +539,7 @@ function questionnaire_show_frontend($view = 'overview') {
 		$questionnaires = questionnaireLoadFrontendQuestionnaires($pdo);
 		echo '<main class="qnr-layout qnr-layout--frontend">';
 		echo '<section class="qnr-card">';
-		echo '<h1>Fragebögen</h1>';
+		echo '<h1>Fragebögen – Übersicht</h1>';
 		if (empty($questionnaires)) {
 			echo '<p>Aktuell sind keine aktiven Fragebögen verfügbar.</p>';
 		} else {
