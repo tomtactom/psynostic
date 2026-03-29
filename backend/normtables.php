@@ -19,11 +19,14 @@
 		'norm_label'
 	);
 
-	function addRowError(&$errors, $row, $message) {
+	function addRowError(&$errors, $row, $type, $message) {
 		if (!isset($errors[$row])) {
 			$errors[$row] = array();
 		}
-		$errors[$row][] = $message;
+		$errors[$row][] = array(
+			'type' => $type,
+			'message' => $message
+		);
 	}
 
 	function normalizeHeader($headerRow) {
@@ -73,9 +76,16 @@
 		return '';
 	}
 
+	$errorTypeLabels = array(
+		'schema' => 'Schema',
+		'required' => 'Pflichtfeld',
+		'numeric' => 'Numerik',
+		'interval' => 'Intervall'
+	);
 	$importErrors = array();
 	$importSummary = array();
 	$uploadedRows = array();
+	$uploadAttempted = false;
 
 	if (isset($_GET['download_template']) && $_GET['download_template'] === '1') {
 		header('Content-Type: text/csv; charset=utf-8');
@@ -91,6 +101,7 @@
 	}
 
 	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['upload_normtable_csv'])) {
+		$uploadAttempted = true;
 		if (!isset($_FILES['normtable_csv']) || (int)$_FILES['normtable_csv']['error'] !== UPLOAD_ERR_OK) {
 			$importSummary[] = 'Beim Upload ist ein Fehler aufgetreten. Bitte Datei erneut auswählen.';
 		} else {
@@ -127,23 +138,23 @@
 								$mappedRow = mapRowByHeader($header, $row);
 
 								if ($mappedRow['csv_schema_version'] === '') {
-									addRowError($importErrors, $rowNumber, 'csv_schema_version ist leer.');
+									addRowError($importErrors, $rowNumber, 'required', 'csv_schema_version ist leer.');
 								} elseif (!in_array($mappedRow['csv_schema_version'], NORMTABLE_SUPPORTED_SCHEMA_VERSIONS, true)) {
-									addRowError($importErrors, $rowNumber, 'Nicht unterstützte csv_schema_version: '.$mappedRow['csv_schema_version']);
+									addRowError($importErrors, $rowNumber, 'schema', 'Nicht unterstützte csv_schema_version: '.$mappedRow['csv_schema_version']);
 								}
 
 								if ($mappedRow['group_key'] === '') {
-									addRowError($importErrors, $rowNumber, 'group_key darf nicht leer sein.');
+									addRowError($importErrors, $rowNumber, 'required', 'group_key darf nicht leer sein.');
 								}
 
 								if ($mappedRow['score_key'] === '') {
-									addRowError($importErrors, $rowNumber, 'score_key darf nicht leer sein.');
+									addRowError($importErrors, $rowNumber, 'required', 'score_key darf nicht leer sein.');
 								}
 
 								$numericFields = array('raw_min', 'raw_max', 'norm_value', 'percentile');
 								foreach ($numericFields as $fieldName) {
 									if ($mappedRow[$fieldName] === '' || !is_numeric($mappedRow[$fieldName])) {
-										addRowError($importErrors, $rowNumber, $fieldName.' muss numerisch sein.');
+										addRowError($importErrors, $rowNumber, 'numeric', $fieldName.' muss numerisch sein.');
 									}
 								}
 
@@ -153,12 +164,12 @@
 									$rawMax = (float)$mappedRow['raw_max'];
 
 									if ($rawMin > $rawMax) {
-										addRowError($importErrors, $rowNumber, 'Intervallfehler: raw_min ist größer als raw_max.');
+										addRowError($importErrors, $rowNumber, 'interval', 'Intervallfehler: raw_min ist größer als raw_max.');
 									}
 								}
 
 								if ($mappedRow['norm_label'] === '') {
-									addRowError($importErrors, $rowNumber, 'norm_label darf nicht leer sein.');
+									addRowError($importErrors, $rowNumber, 'required', 'norm_label darf nicht leer sein.');
 								}
 
 								if (!isset($importErrors[$rowNumber]) && $hasRawBoundaries) {
@@ -192,6 +203,7 @@
 										addRowError(
 											$importErrors,
 											$current['row'],
+											'interval',
 											'Überlappendes Intervall für '.$bucketKey.' mit Zeile '.$previous['row'].'.'
 										);
 									}
@@ -212,6 +224,20 @@
 			}
 		}
 	}
+
+	$errorTypeCounts = array();
+	foreach ($importErrors as $rowErrors) {
+		foreach ($rowErrors as $rowError) {
+			$errorType = isset($rowError['type']) ? (string)$rowError['type'] : 'schema';
+			if (!isset($errorTypeCounts[$errorType])) {
+				$errorTypeCounts[$errorType] = 0;
+			}
+			$errorTypeCounts[$errorType]++;
+		}
+	}
+	arsort($errorTypeCounts);
+
+	$isSuccessfulValidation = $uploadAttempted && empty($importErrors) && !empty($importSummary);
 ?>
 <main class="qnr-layout qnr-layout--backend">
 	<section class="qnr-card">
@@ -224,43 +250,87 @@
 			Dieses Werkzeug validiert CSV-Dateien strikt anhand der Pflichtspalten, Datentypen,
 			Intervallgrenzen und Überlappungsregeln je Kombination aus <code>group_key + score_key</code>.
 		</p>
-		<p>
-			<a class="qnr-btn qnr-btn--secondary qnr-focusable" href="?download_template=1">CSV-Beispieldatei herunterladen</a>
-		</p>
-
 		<form action="" method="post" enctype="multipart/form-data">
 			<div class="qnr-form-row">
 				<label for="normtable_csv">CSV-Datei</label>
 				<input class="qnr-input" type="file" name="normtable_csv" id="normtable_csv" accept=".csv,text/csv" required>
 			</div>
-			<button class="qnr-btn qnr-focusable" type="submit" name="upload_normtable_csv" value="1">CSV prüfen</button>
+			<div class="qnr-form-row">
+				<button class="qnr-btn qnr-focusable" type="submit" name="upload_normtable_csv" value="1">CSV prüfen</button>
+				<a class="qnr-btn qnr-btn--secondary qnr-focusable" href="?download_template=1">CSV-Beispieldatei herunterladen</a>
+			</div>
 		</form>
 
-		<?php if (!empty($importSummary)) { ?>
-			<h2>Ergebnis</h2>
-			<ul>
+		<?php if ($uploadAttempted) { ?>
+			<div id="upload-result" tabindex="-1">
+				<h2>Ergebnis</h2>
+				<h3>1) Gesamtstatus</h3>
+				<div role="<?php echo $isSuccessfulValidation ? 'status' : 'alert'; ?>" class="<?php echo $isSuccessfulValidation ? 'qnr-alert qnr-alert--success' : 'qnr-alert qnr-alert--danger'; ?>">
+					<strong><?php echo $isSuccessfulValidation ? 'Erfolg' : 'Fehler'; ?>:</strong>
+					<?php echo $isSuccessfulValidation ? 'Datei validiert.' : 'Es wurden Validierungsfehler gefunden.'; ?>
+				</div>
+			<?php if (!empty($importSummary)) { ?>
+				<ul>
 				<?php foreach ($importSummary as $message) { ?>
 					<li><?php echo htmlentities($message); ?></li>
 				<?php } ?>
-			</ul>
+				</ul>
+			<?php } ?>
+
+			<?php if ($isSuccessfulValidation) { ?>
+				<div role="status" class="qnr-alert qnr-alert--success">
+					<strong>Nächster Schritt:</strong> Datei ist valide – bereit für Persistierung. Daten jetzt importieren.
+				</div>
+			<?php } ?>
+
+			<?php if (!empty($importErrors)) { ?>
+				<h3>2) Fehlerstatistik</h3>
+				<ul>
+					<li>Fehlerhafte CSV-Zeilen: <?php echo count($importErrors); ?></li>
+					<li>Häufigste Fehlertypen:
+						<?php
+							$topErrorTypes = array_slice($errorTypeCounts, 0, 3, true);
+							$topTypeLabels = array();
+							foreach ($topErrorTypes as $errorType => $count) {
+								$topTypeLabels[] = (isset($errorTypeLabels[$errorType]) ? $errorTypeLabels[$errorType] : ucfirst($errorType)).' ('.$count.')';
+							}
+							echo htmlentities(!empty($topTypeLabels) ? implode(', ', $topTypeLabels) : 'keine');
+						?>
+					</li>
+				</ul>
+				<p>
+					Filter:
+					<?php foreach ($errorTypeCounts as $errorType => $count) { ?>
+						<a href="#error-type-<?php echo htmlentities($errorType); ?>"><?php echo htmlentities((isset($errorTypeLabels[$errorType]) ? $errorTypeLabels[$errorType] : ucfirst($errorType)).' ('.$count.')'); ?></a>
+					<?php } ?>
+				</p>
+			<?php } ?>
+			</div>
 		<?php } ?>
 
 		<?php if (!empty($importErrors)) { ?>
-			<h2>Importfehler je Zeile</h2>
+			<h3>3) Detailliste je Zeile</h3>
+			<?php foreach ($errorTypeCounts as $errorType => $count) { ?>
+				<h4 id="error-type-<?php echo htmlentities($errorType); ?>"><?php echo htmlentities(isset($errorTypeLabels[$errorType]) ? $errorTypeLabels[$errorType] : ucfirst($errorType)); ?> (<?php echo (int)$count; ?>)</h4>
+			<?php } ?>
 			<div class="qnr-table-wrap">
 				<table class="tablesorter qnr-table">
 					<thead>
 						<tr>
 							<th>CSV-Zeile</th>
+							<th>Fehlertyp</th>
 							<th>Fehler</th>
 						</tr>
 					</thead>
 					<tbody>
 						<?php foreach ($importErrors as $rowNumber => $rowErrors) { ?>
-							<tr>
-								<td><?php echo (int)$rowNumber; ?></td>
-								<td><?php echo htmlentities(implode(' | ', $rowErrors)); ?></td>
-							</tr>
+							<?php foreach ($rowErrors as $rowError) { ?>
+								<tr>
+									<td><?php echo (int)$rowNumber; ?></td>
+									<td><?php echo htmlentities(isset($errorTypeLabels[$rowError['type']]) ? $errorTypeLabels[$rowError['type']] : ucfirst((string)$rowError['type'])); ?></td>
+									<td><?php echo htmlentities((string)$rowError['message']); ?></td>
+								</tr>
+							<?php } ?>
 						<?php } ?>
 					</tbody>
 				</table>
@@ -268,6 +338,16 @@
 		<?php } ?>
 	</section>
 </main>
+<?php if ($uploadAttempted) { ?>
+<script>
+	(function() {
+		var resultContainer = document.getElementById('upload-result');
+		if (resultContainer && typeof resultContainer.focus === 'function') {
+			resultContainer.focus();
+		}
+	})();
+</script>
+<?php } ?>
 <?php
 	include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php');
 ?>
