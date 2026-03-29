@@ -1,5 +1,6 @@
 <?php
 	$success_msg = false;
+	$error = false;
 		if(isset($_POST['save_settings'])) {
 			$siteurl = trim((string)($_POST['siteurl'] ?? ''));
 			$sitename = trim((string)($_POST['sitename'] ?? ''));
@@ -29,8 +30,12 @@
 			$error = true;
 		}
 		//überprüfe die Minimale Stringlänge
-		if(strlen($siteurl) > 255 || strlen($sitename) > 255 || strlen($sitedescription) > 255 || strlen($keywordsmain) > 255 || strlen($adminemail) > 255 || strlen($country) > 255 || strlen($author) > 255 || strlen($mainrole) > 10 || strlen($backenddesign) > 255 || strlen($maincolor) != 7 || strlen($frontenddesign) > 255 || strlen($mainfontcolor) != 7 || strlen($mainbackgroundcolor) != 7 || strlen($mainhovercolor) != 7 || strlen($font) > 255 || strlen($mindestalter) > 3 || strlen($language) > 10 || strlen($fontname) > 255) {
+		if(strlen($siteurl) > 255 || strlen($sitename) > 255 || strlen($sitedescription) > 255 || strlen($keywordsmain) > 255 || strlen($adminemail) > 255 || strlen($country) > 255 || strlen($author) > 255 || strlen($mainrole) > 10 || strlen($backenddesign) > 255 || strlen($frontenddesign) > 255 || strlen($font) > 255 || strlen($mindestalter) > 3 || strlen($language) > 10 || strlen($fontname) > 255) {
 			$error_msg = 'Mindestens eine Eingabe war ungültig! Bitte maximal 255 Zeichen pro Feld eingeben.';
+			$error = true;
+		}
+		if(!preg_match('/^#[A-Fa-f0-9]{6}$/', $maincolor) || !preg_match('/^#[A-Fa-f0-9]{6}$/', $mainfontcolor) || !preg_match('/^#[A-Fa-f0-9]{6}$/', $mainbackgroundcolor) || !preg_match('/^#[A-Fa-f0-9]{6}$/', $mainhovercolor)) {
+			$error_msg = 'Bitte gebe gültige Hex-Farben im Format #RRGGBB ein';
 			$error = true;
 		}
 		//überprüfe die Minimale Stringlänge
@@ -71,7 +76,7 @@
 			$error= true;
 		}
 		//Speichert alles in der config Datei
-		if (!isset($error)) {
+		if (!$error) {
 			$stmt = $db->prepare("UPDATE `option` SET `option_value` = ?, `updated_at` = CURRENT_TIMESTAMP() WHERE `option_name` = ?");
 			$stmt->bind_param("ss", $value, $name);
 

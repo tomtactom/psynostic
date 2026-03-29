@@ -9,7 +9,14 @@
 			<input type="text" id="inputSitedescription" name="sitedescription" value="<?php echo $options['sitedescription']; ?>" minlength="12" maxlength="255" required>
 		</label>
 		<label for="inputKeywordsmain">Hauptschlagwörter: 
-			<input type="text" id="inputKeywordsmain" name="keywordsmain" value="<?php echo $options['keywordsmain']; ?>" minlength="3" maxlength="255" required>
+			<input type="text" id="inputKeywordsmain" name="keywordsmain" value="<?php echo $options['keywordsmain']; ?>" minlength="12" maxlength="255" required>
+		</label>
+		<a href="https://www.google.com/recaptcha" target="_blank" rel="external">google.com/recaptcha</a>
+		<label for="inputRecaptcha_sitekey">Websiteschlüssel Google reCAPTCHA:
+			<input type="text" id="inputRecaptcha_sitekey" name="recaptcha_sitekey" value="<?php echo $options['recaptcha_sitekey'] ?? ''; ?>" minlength="3" maxlength="255" required>
+		</label>
+		<label for="inputRecaptcha_secretkey">Geheimer Schlüssel Google reCAPTCHA:
+			<input type="text" id="inputRecaptcha_secretkey" name="recaptcha_secretkey" value="<?php echo $options['recaptcha_secretkey'] ?? ''; ?>" minlength="3" maxlength="255" required>
 		</label>
 		<label for="inputAdminemail">Adminstrator E-Mail: 
 			<input type="email" id="inputAdminemail" name="adminemail" value="<?php echo $options['adminemail']; ?>" minlength="6" maxlength="255" required>
@@ -42,7 +49,7 @@
 			</select>
 		</label>
 		<label for="inputAllowregister">Registrierung im Frontend
-			<select for="inputAllowregister" name="allowregister" required>
+			<select id="inputAllowregister" name="allowregister" required>
 				<option <?php echo $allowregister_0_select; ?> value="0">Registrieren nicht erlauben</option>
 				<option <?php echo $allowregister_1_select; ?> value="1">Registrieren erlauben</option>
 			</select>
