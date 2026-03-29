@@ -47,6 +47,13 @@ footer {
 	gap: .9rem;
 }
 
+.brand-wrap img {
+	height: 56px;
+	width: auto;
+	max-height: 56px;
+	flex-shrink: 0;
+}
+
 .brand-wrap strong {
 	display: block;
 	font-size: 1.05rem;
