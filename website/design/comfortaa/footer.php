@@ -8,13 +8,13 @@
             <nav>
                 <section>
                     <?php
-						include('../website/menu_left.inc.php');
+						include dirname(__DIR__, 2) . '/menu_left.inc.php';
 					?>
                 </section>
                 <section>
                     <ul>
                         <?php
-							include('../website/menu_right.inc.php');
+							include dirname(__DIR__, 2) . '/menu_right.inc.php';
 						?>
                     </ul>
                 </section>
