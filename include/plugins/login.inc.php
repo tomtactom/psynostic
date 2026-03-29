@@ -36,14 +36,18 @@
 				setcookie("identifier",$identifier,time()+(3600*24*365)); //Valid for 1 year
 				setcookie("securitytoken",$securitytoken,time()+(3600*24*365)); //Valid for 1 year
 			}
-			
-	?>
-		<?php
-			if (getPageLink() == $options['siteurl'].'/login' || getPageLink() == $options['siteurl'].'/backend/login') {
-				header("Location: profile");
-		} else {
-		header("Location: ".getPageLink());
-	}
+			$redirectTarget = (getPageLink() == $options['siteurl'].'/login' || getPageLink() == $options['siteurl'].'/backend/login')
+				? 'profile'
+				: getPageLink();
+
+			if (!headers_sent()) {
+				header("Location: " . $redirectTarget);
+				exit;
+			}
+
+			$escapedRedirectTarget = htmlspecialchars($redirectTarget, ENT_QUOTES, 'UTF-8');
+			echo '<script>window.location.href=' . json_encode($redirectTarget) . ';</script>';
+			echo '<noscript><meta http-equiv="refresh" content="0;url=' . $escapedRedirectTarget . '"></noscript>';
 			exit;
 		} else {
 			$error_msg =  "Die E-Mail, der Benutzername oder das Passwort war ungültig oder du hast deine E-Mail noch nicht bestätigt.";
