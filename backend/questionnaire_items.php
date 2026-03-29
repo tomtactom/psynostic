@@ -113,6 +113,20 @@
 		return $payload;
 	}
 
+	function questionnaireItemsPageOwnershipColumn(PDO $pdo)
+	{
+		$columns = array('created_by', 'owner_id', 'user_id', 'manager_id');
+		foreach ($columns as $column) {
+			$stmt = $pdo->prepare('SHOW COLUMNS FROM questionnaires LIKE :column_name');
+			$stmt->execute(array(':column_name' => $column));
+			if ($stmt->fetch(PDO::FETCH_ASSOC)) {
+				return $column;
+			}
+		}
+
+		return null;
+	}
+
 	if ($questionnaireId <= 0) {
 		die('<p>Ungültige Fragebogen-ID.</p>');
 	}
