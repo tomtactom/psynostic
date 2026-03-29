@@ -615,6 +615,20 @@ function questionnaire_show_frontend() {
 		$currentStep = 'intro';
 	}
 
+	echo '<style>
+		.form-group { margin-bottom: 1rem; }
+		.form-field { margin-bottom: 0.9rem; }
+		.form-field label { display: inline-block; margin-bottom: 0.25rem; }
+		.field-hint { margin: 0.25rem 0 0; font-size: 0.92em; color: #555; }
+		.required-note { margin-bottom: 0.75rem; font-size: 0.95em; }
+		.required-marker { color: #b00020; font-weight: 700; }
+		.required-text { font-size: 0.9em; }
+		.likert-scale { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+		.likert-anchor { font-size: 0.9em; color: #444; }
+		.radio-group { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+		.radio-option { display: inline-flex; align-items: center; gap: 0.25rem; }
+	</style>';
+
 	echo '<h1>'.htmlentities((string)$questionnaire['title']).'</h1>';
 	if (!empty($messages)) {
 		echo '<ul>';
@@ -885,6 +899,8 @@ function questionnaireRenderDemographicInputs(array $fields, array $values) {
 		echo '<p>Keine demografischen Pflichtangaben konfiguriert.</p>';
 		return;
 	}
+	echo '<p class="required-note"><span class="required-marker" aria-hidden="true">*</span> Pflichtfeld (muss ausgefüllt werden)</p>';
+	echo '<div class="form-group">';
 	foreach ($fields as $field) {
 		$key = isset($field['field_key']) ? (string)$field['field_key'] : '';
 		if ($key === '') {
@@ -894,13 +910,33 @@ function questionnaireRenderDemographicInputs(array $fields, array $values) {
 		$type = isset($field['field_type']) ? strtolower((string)$field['field_type']) : 'text';
 		$isRequired = isset($field['is_required']) && (int)$field['is_required'] === 1;
 		$current = array_key_exists($key, $values) ? (string)$values[$key] : '';
-		echo '<label for="demo_'.htmlentities($key).'">'.htmlentities($label).($isRequired ? ' *' : '').'</label><br>';
-		if ($type === 'integer' || $type === 'number') {
-			echo '<input type="number" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
-		} else {
-			echo '<input type="text" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+		$fieldId = 'demo_'.htmlentities($key);
+		$hintId = 'demo_'.htmlentities($key).'_hint';
+		$requiredText = $isRequired ? '<span class="required-marker" aria-hidden="true">*</span><span class="required-text"> Pflichtfeld</span>' : '';
+		$rules = array();
+		if (isset($field['allowed_values_json']) && $field['allowed_values_json'] !== null && trim((string)$field['allowed_values_json']) !== '') {
+			$decodedRules = json_decode((string)$field['allowed_values_json'], true);
+			if (is_array($decodedRules)) {
+				$rules = $decodedRules;
+			}
 		}
+		echo '<div class="form-field">';
+		echo '<label for="'.$fieldId.'">'.htmlentities($label).$requiredText.'</label>';
+		if ($type === 'integer' || $type === 'number') {
+			$minAttr = isset($rules['min']) && is_numeric($rules['min']) ? ' min="'.(float)$rules['min'].'"' : '';
+			$maxAttr = isset($rules['max']) && is_numeric($rules['max']) ? ' max="'.(float)$rules['max'].'"' : '';
+			$stepAttr = $type === 'integer' ? ' step="1"' : ' step="any"';
+			$inputMode = $type === 'integer' ? 'numeric' : 'decimal';
+			echo '<input type="number" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" inputmode="'.$inputMode.'"'.$minAttr.$maxAttr.$stepAttr.' aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'>';
+			echo '<p class="field-hint" id="'.$hintId.'">Numerischer Wert'.($isRequired ? ', erforderlich' : ', optional').'.</p>';
+		} else {
+			$hintText = 'Textfeld, maximal 255 Zeichen'.($isRequired ? ', erforderlich' : ', optional').'.';
+			echo '<input type="text" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'>';
+			echo '<p class="field-hint" id="'.$hintId.'">'.$hintText.'</p>';
+		}
+		echo '</div>';
 	}
+	echo '</div>';
 }
 
 function questionnaireRenderHiddenDemographics(array $fields, array $values) {
@@ -919,19 +955,33 @@ function questionnaireRenderItems(array $items, array $values) {
 		echo '<p>Für diesen Fragebogen sind keine Items konfiguriert.</p>';
 		return;
 	}
+	echo '<p class="required-note"><span class="required-marker" aria-hidden="true">*</span> Pflichtfeld (muss beantwortet werden)</p>';
+	echo '<div class="form-group">';
 	foreach ($items as $item) {
 		$itemId = (int)$item['id'];
 		$min = (int)$item['likert_min'];
 		$max = (int)$item['likert_max'];
 		$isRequired = isset($item['is_required']) && (int)$item['is_required'] === 1;
 		$current = array_key_exists($itemId, $values) ? (string)$values[$itemId] : '';
-		echo '<fieldset style="margin-bottom:12px;"><legend>'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' *' : '').'</legend>';
+		$legendId = 'item_'.$itemId.'_legend';
+		$hintId = 'item_'.$itemId.'_hint';
+		echo '<fieldset class="form-field">';
+		echo '<legend id="'.$legendId.'">'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' <span class="required-marker" aria-hidden="true">*</span><span class="required-text"> Pflichtfeld</span>' : '').'</legend>';
+		echo '<p class="field-hint" id="'.$hintId.'">Bitte einen Wert von '.$min.' bis '.$max.' auswählen.</p>';
+		echo '<div class="likert-scale">';
+		echo '<span class="likert-anchor likert-anchor-left">trifft gar nicht zu</span>';
+		echo '<div class="radio-group" role="radiogroup" aria-labelledby="'.$legendId.'" aria-describedby="'.$hintId.'">';
 		for ($value = $min; $value <= $max; $value++) {
 			$checked = ($current !== '' && (int)$current === $value) ? 'checked' : '';
-			echo '<label style="margin-right:10px;"><input type="radio" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' '.($isRequired ? 'required' : '').'> '.$value.'</label>';
+			$radioId = 'item_'.$itemId.'_value_'.$value;
+			echo '<div class="radio-option"><input type="radio" id="'.$radioId.'" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'><label for="'.$radioId.'">'.$value.'</label></div>';
 		}
+		echo '</div>';
+		echo '<span class="likert-anchor likert-anchor-right">trifft völlig zu</span>';
+		echo '</div>';
 		echo '</fieldset>';
 	}
+	echo '</div>';
 }
 
 function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $questionnaire, array $demographics, array $responses) {
