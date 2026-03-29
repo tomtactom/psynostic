@@ -224,7 +224,7 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
         }
         $birthday = "";
         if (isset($_POST['birthday'])) {
-            $gender = trim($_POST['birthday']);
+            $birthday = trim($_POST['birthday']);
         }
         $username = "";
         if (isset($_POST['username'])) {
@@ -238,8 +238,8 @@ if (isset($_POST['aktion']) and $_POST['aktion'] == 'korrigieren') {
 
 
             // speichern
-            $einfuegen = $db->prepare("INSERT INTO users (vorname, nachname, email, role, biography, gender, birthday, username, passwort, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-            $einfuegen->bind_param('sssssssssi', $vorname, $nachname, $email, $role, $biography, $gender, $birthday, $username, $passwort, $id);
+            $einfuegen = $db->prepare("INSERT INTO users (vorname, nachname, email, role, biography, gender, birthday, username, passwort) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $einfuegen->bind_param('sssssssss', $vorname, $nachname, $email, $role, $biography, $gender, $birthday, $username, $passwort);
 
             if ($einfuegen->execute()) {
                 header('Location: user?aktion=feedbackgespeichert');
