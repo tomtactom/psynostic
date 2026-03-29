@@ -679,7 +679,7 @@ function questionnaire_show_frontend($view = 'overview') {
 				$postedDemographics = questionnaireReadDemographicsFromPost($demographicFields);
 				$postedItems = questionnaireReadItemsFromPost($items);
 				$demographicValidation = questionnaireValidateDemographics($demographicFields, $postedDemographics);
-				$itemValidation = questionnaireValidateItems($items, $postedItems);
+				$itemValidation = questionnaireValidateItems($questionnaire, $items, $postedItems);
 				$errors = array_merge($errors, $demographicValidation['errors'], $itemValidation['errors']);
 				$postedCompletionToken = isset($_POST['completion_token']) ? (string)$_POST['completion_token'] : '';
 				if (!isset($flow['session_id']) || (int)$flow['session_id'] <= 0) {
@@ -748,7 +748,7 @@ function questionnaire_show_frontend($view = 'overview') {
 	echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 	echo '<input type="hidden" name="completion_token" value="'.htmlentities((string)$flow['completion_token']).'">';
 	questionnaireRenderHiddenDemographics($demographicFields, $demoValues);
-	questionnaireRenderItems($items, $itemValues, $collectedErrors['item_ids']);
+	questionnaireRenderItems($questionnaire, $items, $itemValues, $collectedErrors['item_ids']);
 	echo '<div class="qnr-form-actions">';
 	echo '<button class="qnr-btn qnr-btn--secondary qnr-focusable" type="submit" name="action" value="back_to_demographics" formaction="'.$baseUrl.'&step=demographics">Zurück</button>';
 	echo '<button class="qnr-btn qnr-focusable" type="submit">Abschließen</button></div>';
@@ -829,19 +829,19 @@ function questionnaireRenderFrontendValidationScript() {
 }
 
 function questionnaireLoadActiveQuestionnaire(PDO $pdo) {
-	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text, standard_rules_json FROM questionnaires WHERE status = :status ORDER BY updated_at DESC, id DESC LIMIT 1');
+	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text, standard_rules_json, scale_type, likert_min, likert_max, scale_labels_json, raw_mapping_json, needs_manual_scale_cleanup FROM questionnaires WHERE status = :status ORDER BY updated_at DESC, id DESC LIMIT 1');
 	$stmt->execute(array(':status' => 'active'));
 	return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
 function questionnaireLoadFrontendQuestionnaires(PDO $pdo) {
-	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text FROM questionnaires WHERE status = :status ORDER BY updated_at DESC, id DESC');
+	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text, scale_type, likert_min, likert_max FROM questionnaires WHERE status = :status ORDER BY updated_at DESC, id DESC');
 	$stmt->execute(array(':status' => 'active'));
 	return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 function questionnaireLoadBySlug(PDO $pdo, $slug) {
-	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text, standard_rules_json FROM questionnaires WHERE slug = :slug AND status = :status LIMIT 1');
+	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text, standard_rules_json, scale_type, likert_min, likert_max, scale_labels_json, raw_mapping_json, needs_manual_scale_cleanup FROM questionnaires WHERE slug = :slug AND status = :status LIMIT 1');
 	$stmt->execute(array(
 		':slug' => (string)$slug,
 		':status' => 'active'
@@ -856,7 +856,7 @@ function questionnaireLoadDemographicFields(PDO $pdo, $questionnaireId) {
 }
 
 function questionnaireLoadItems(PDO $pdo, $questionnaireId) {
-	$stmt = $pdo->prepare('SELECT id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id ORDER BY item_no ASC, id ASC');
+	$stmt = $pdo->prepare('SELECT id, item_no, item_text, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id ORDER BY item_no ASC, id ASC');
 	$stmt->execute(array(':questionnaire_id' => (int)$questionnaireId));
 	return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -1010,7 +1010,7 @@ function questionnaireValidateDemographics(array $fields, array $rawValues) {
 	return array('errors' => $errors, 'values' => $values);
 }
 
-function questionnaireValidateItems(array $items, array $rawValues) {
+function questionnaireValidateItems(array $questionnaire, array $items, array $rawValues) {
 	$errors = array();
 	$values = array();
 
@@ -1044,8 +1044,8 @@ function questionnaireValidateItems(array $items, array $rawValues) {
 			continue;
 		}
 		$value = (int)$raw;
-		$min = isset($item['likert_min']) ? (int)$item['likert_min'] : 0;
-		$max = isset($item['likert_max']) ? (int)$item['likert_max'] : 0;
+		$min = isset($questionnaire['likert_min']) ? (int)$questionnaire['likert_min'] : 1;
+		$max = isset($questionnaire['likert_max']) ? (int)$questionnaire['likert_max'] : 5;
 		if ($value < $min || $value > $max) {
 			$errors[] = questionnaireBuildValidationError(
 				$itemLabel.' liegt außerhalb des erlaubten Bereichs ('.$min.' bis '.$max.').',
@@ -1054,7 +1054,7 @@ function questionnaireValidateItems(array $items, array $rawValues) {
 			);
 			continue;
 		}
-		if (isset($item['scale_type']) && $item['scale_type'] === 'binary' && !($value === 0 || $value === 1)) {
+		if (isset($questionnaire['scale_type']) && (string)$questionnaire['scale_type'] === 'binary' && !($value === 0 || $value === 1)) {
 			$errors[] = questionnaireBuildValidationError(
 				$itemLabel.' muss bei binärer Skala 0 oder 1 sein.',
 				'format',
@@ -1129,7 +1129,7 @@ function questionnaireRenderHiddenDemographics(array $fields, array $values) {
 	}
 }
 
-function questionnaireRenderItems(array $items, array $values, array $errorsByItemId = array()) {
+function questionnaireRenderItems(array $questionnaire, array $items, array $values, array $errorsByItemId = array()) {
 	if (empty($items)) {
 		echo '<p>Für diesen Fragebogen sind keine Items konfiguriert.</p>';
 		return;
@@ -1158,8 +1158,8 @@ function questionnaireRenderItems(array $items, array $values, array $errorsByIt
 	echo '<div class="form-group">';
 	foreach ($items as $item) {
 		$itemId = (int)$item['id'];
-		$min = (int)$item['likert_min'];
-		$max = (int)$item['likert_max'];
+		$min = isset($questionnaire['likert_min']) ? (int)$questionnaire['likert_min'] : 1;
+		$max = isset($questionnaire['likert_max']) ? (int)$questionnaire['likert_max'] : 5;
 		$isRequired = isset($item['is_required']) && (int)$item['is_required'] === 1;
 		$current = array_key_exists($itemId, $values) ? (string)$values[$itemId] : '';
 		$legendId = 'item_'.$itemId.'_legend';
@@ -1366,7 +1366,7 @@ function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $que
 			));
 		}
 
-		$itemStmt = $pdo->prepare('SELECT id, likert_min, likert_max, is_reversed, subscale_key FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id');
+		$itemStmt = $pdo->prepare('SELECT id, is_reversed, subscale_key FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id');
 		$itemStmt->execute(array(':questionnaire_id' => (int)$questionnaire['id']));
 		$items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
 		$itemMap = array();
@@ -1381,15 +1381,15 @@ function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $que
 		$totalSum = 0.0;
 		$totalCount = 0;
 		$subscaleBuckets = array();
+		$questionnaireMin = isset($questionnaire['likert_min']) ? (float)$questionnaire['likert_min'] : 1.0;
+		$questionnaireMax = isset($questionnaire['likert_max']) ? (float)$questionnaire['likert_max'] : 5.0;
 		foreach ($responses as $itemId => $rawValue) {
 			if (!isset($itemMap[(int)$itemId]) || $rawValue === null) {
 				continue;
 			}
 			$item = $itemMap[(int)$itemId];
 			$rawFloat = (float)$rawValue;
-			$min = (float)$item['likert_min'];
-			$max = (float)$item['likert_max'];
-			$scoredValue = (int)$item['is_reversed'] === 1 ? (($min + $max) - $rawFloat) : $rawFloat;
+			$scoredValue = (int)$item['is_reversed'] === 1 ? (($questionnaireMin + $questionnaireMax) - $rawFloat) : $rawFloat;
 			$insertAnswerStmt->execute(array(
 				':session_id' => (int)$sessionId,
 				':item_id' => (int)$itemId,
@@ -1520,24 +1520,99 @@ function questionnaireEnsureSchema(PDO $pdo) {
 		}
 	}
 
-	if (empty($missingTables)) {
-		return array('checked' => true, 'applied' => false, 'created_tables' => array());
+	$applied = false;
+	if (!empty($missingTables)) {
+		$pdo->beginTransaction();
+		try {
+			foreach ($tableDefinitions as $tableSql) {
+				$pdo->exec($tableSql);
+			}
+			$pdo->commit();
+			$applied = true;
+		} catch (Throwable $e) {
+			if ($pdo->inTransaction()) {
+				$pdo->rollBack();
+			}
+			throw $e;
+		}
 	}
 
-	$pdo->beginTransaction();
+	$migrationApplied = questionnaireRunScaleMigration($pdo);
+	return array('checked' => true, 'applied' => ($applied || $migrationApplied), 'created_tables' => $missingTables);
+}
+
+function questionnaireRunScaleMigration(PDO $pdo) {
+	$changed = false;
+	$columns = array(
+		"ALTER TABLE questionnaires ADD COLUMN `scale_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'likert' AFTER `standard_rules_json`",
+		"ALTER TABLE questionnaires ADD COLUMN `likert_min` int(10) NOT NULL DEFAULT 1 AFTER `scale_type`",
+		"ALTER TABLE questionnaires ADD COLUMN `likert_max` int(10) NOT NULL DEFAULT 5 AFTER `likert_min`",
+		"ALTER TABLE questionnaires ADD COLUMN `scale_labels_json` longtext COLLATE utf8mb4_unicode_ci NULL AFTER `likert_max`",
+		"ALTER TABLE questionnaires ADD COLUMN `raw_mapping_json` longtext COLLATE utf8mb4_unicode_ci NULL AFTER `scale_labels_json`",
+		"ALTER TABLE questionnaires ADD COLUMN `needs_manual_scale_cleanup` tinyint(1) NOT NULL DEFAULT 0 AFTER `raw_mapping_json`"
+	);
+	foreach ($columns as $sql) {
+		try {
+			$pdo->exec($sql);
+			$changed = true;
+		} catch (Throwable $e) {
+		}
+	}
 	try {
-		foreach ($tableDefinitions as $tableSql) {
-			$pdo->exec($tableSql);
-		}
-		$pdo->commit();
+		$pdo->exec('CREATE TABLE IF NOT EXISTS `questionnaire_scale_options` (
+			`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+			`questionnaire_id` int(10) unsigned NOT NULL,
+			`raw_value` decimal(10,4) NOT NULL,
+			`mapped_value` decimal(10,4) NOT NULL,
+			`option_label` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+			PRIMARY KEY (`id`),
+			UNIQUE KEY `uniq_questionnaire_scale_options_raw` (`questionnaire_id`,`raw_value`),
+			KEY `idx_questionnaire_scale_options_questionnaire_id` (`questionnaire_id`),
+			CONSTRAINT `fk_questionnaire_scale_options_questionnaire_id`
+				FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
 	} catch (Throwable $e) {
-		if ($pdo->inTransaction()) {
-			$pdo->rollBack();
-		}
-		throw $e;
 	}
 
-	return array('checked' => true, 'applied' => true, 'created_tables' => $missingTables);
+	$backfillSql = "
+		UPDATE questionnaires q
+		LEFT JOIN (
+			SELECT a.questionnaire_id, a.scale_type, a.likert_min, a.likert_max
+			FROM questionnaire_items a
+			INNER JOIN (
+				SELECT questionnaire_id, scale_type, likert_min, likert_max, COUNT(*) AS cnt
+				FROM questionnaire_items
+				GROUP BY questionnaire_id, scale_type, likert_min, likert_max
+			) b ON b.questionnaire_id = a.questionnaire_id AND b.scale_type = a.scale_type AND b.likert_min = a.likert_min AND b.likert_max = a.likert_max
+			INNER JOIN (
+				SELECT questionnaire_id, MAX(cnt) AS max_cnt
+				FROM (
+					SELECT questionnaire_id, scale_type, likert_min, likert_max, COUNT(*) AS cnt
+					FROM questionnaire_items
+					GROUP BY questionnaire_id, scale_type, likert_min, likert_max
+				) c
+				GROUP BY questionnaire_id
+			) d ON d.questionnaire_id = b.questionnaire_id AND d.max_cnt = b.cnt
+			GROUP BY a.questionnaire_id, a.scale_type, a.likert_min, a.likert_max
+		) top_scale ON top_scale.questionnaire_id = q.id
+		LEFT JOIN (
+			SELECT questionnaire_id, COUNT(DISTINCT CONCAT(scale_type, ':', likert_min, ':', likert_max)) AS distinct_scale_count
+			FROM questionnaire_items
+			GROUP BY questionnaire_id
+		) consistency ON consistency.questionnaire_id = q.id
+		SET
+			q.scale_type = COALESCE(top_scale.scale_type, q.scale_type),
+			q.likert_min = COALESCE(top_scale.likert_min, q.likert_min),
+			q.likert_max = COALESCE(top_scale.likert_max, q.likert_max),
+			q.needs_manual_scale_cleanup = CASE WHEN COALESCE(consistency.distinct_scale_count, 0) > 1 THEN 1 ELSE 0 END
+	";
+	try {
+		$stmt = $pdo->prepare($backfillSql);
+		$stmt->execute();
+		$changed = true;
+	} catch (Throwable $e) {
+	}
+	return $changed;
 }
 
 function questionnaireSchemaTableDefinitions() {
@@ -1548,6 +1623,12 @@ function questionnaireSchemaTableDefinitions() {
 			`title` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
 			`intro_text` text COLLATE utf8mb4_unicode_ci,
 			`standard_rules_json` longtext COLLATE utf8mb4_unicode_ci,
+			`scale_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT \'likert\',
+			`likert_min` int(10) NOT NULL DEFAULT 1,
+			`likert_max` int(10) NOT NULL DEFAULT 5,
+			`scale_labels_json` longtext COLLATE utf8mb4_unicode_ci,
+			`raw_mapping_json` longtext COLLATE utf8mb4_unicode_ci,
+			`needs_manual_scale_cleanup` tinyint(1) NOT NULL DEFAULT 0,
 			`status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
 			`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			`updated_at` timestamp NULL DEFAULT NULL,
@@ -1568,6 +1649,18 @@ function questionnaireSchemaTableDefinitions() {
 			PRIMARY KEY (`id`),
 			KEY `idx_questionnaire_items_questionnaire_id` (`questionnaire_id`),
 			CONSTRAINT `fk_questionnaire_items_questionnaire_id`
+				FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+		'questionnaire_scale_options' => 'CREATE TABLE IF NOT EXISTS `questionnaire_scale_options` (
+			`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+			`questionnaire_id` int(10) unsigned NOT NULL,
+			`raw_value` decimal(10,4) NOT NULL,
+			`mapped_value` decimal(10,4) NOT NULL,
+			`option_label` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+			PRIMARY KEY (`id`),
+			UNIQUE KEY `uniq_questionnaire_scale_options_raw` (`questionnaire_id`,`raw_value`),
+			KEY `idx_questionnaire_scale_options_questionnaire_id` (`questionnaire_id`),
+			CONSTRAINT `fk_questionnaire_scale_options_questionnaire_id`
 				FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
 		'questionnaire_demographic_fields' => 'CREATE TABLE IF NOT EXISTS `questionnaire_demographic_fields` (

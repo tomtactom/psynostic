@@ -6,8 +6,7 @@
 	$questionnaireId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 	$errors = array();
 	$messages = array();
-	$allowedScaleTypes = array('likert', 'binary', 'custom');
-	$itemCsvColumns = array('item_no', 'item_text', 'scale_type', 'likert_min', 'likert_max', 'is_reversed', 'subscale_key', 'is_required');
+	$itemCsvColumns = array('item_no', 'item_text', 'is_reversed', 'subscale_key', 'is_required');
 
 	function questionnaireItemsDownloadTemplate(array $columns)
 	{
@@ -15,8 +14,8 @@
 		header('Content-Disposition: attachment; filename="questionnaire-items-template-v1.csv"');
 		$output = fopen('php://output', 'w');
 		fputcsv($output, $columns);
-		fputcsv($output, array('1', 'Ich fühle mich heute ausgeglichen.', 'likert', '1', '5', '0', 'wohlbefinden', '1'));
-		fputcsv($output, array('2', 'Ich habe in letzter Zeit schlecht geschlafen.', 'likert', '1', '5', '1', 'stress', '1'));
+		fputcsv($output, array('1', 'Ich fühle mich heute ausgeglichen.', '0', 'wohlbefinden', '1'));
+		fputcsv($output, array('2', 'Ich habe in letzter Zeit schlecht geschlafen.', '1', 'stress', '1'));
 		fclose($output);
 		exit;
 	}
@@ -58,7 +57,7 @@
 		}
 	}
 
-	function validateItemInput(array $input, array $allowedScaleTypes, &$itemData)
+	function validateItemInput(array $input, &$itemData)
 	{
 		$validationErrors = array();
 
@@ -66,9 +65,7 @@
 			'item_id' => isset($input['item_id']) ? (int)$input['item_id'] : 0,
 			'item_no' => isset($input['item_no']) ? (int)$input['item_no'] : 0,
 			'item_text' => isset($input['item_text']) ? trim((string)$input['item_text']) : '',
-			'scale_type' => isset($input['scale_type']) ? trim((string)$input['scale_type']) : '',
-			'likert_min' => isset($input['likert_min']) ? (int)$input['likert_min'] : 0,
-			'likert_max' => isset($input['likert_max']) ? (int)$input['likert_max'] : 0,
+
 			'is_reversed' => isset($input['is_reversed']) && (string)$input['is_reversed'] === '1' ? 1 : 0,
 			'subscale_key' => isset($input['subscale_key']) ? trim((string)$input['subscale_key']) : '',
 			'is_required' => isset($input['is_required']) && (string)$input['is_required'] === '1' ? 1 : 0,
@@ -79,15 +76,6 @@
 		}
 		if ($itemData['item_text'] === '' || mb_strlen($itemData['item_text']) > 20000) {
 			$validationErrors[] = 'Itemtext ist erforderlich und darf maximal 20.000 Zeichen lang sein.';
-		}
-		if (!in_array($itemData['scale_type'], $allowedScaleTypes, true)) {
-			$validationErrors[] = 'Ungültiger Skalentyp.';
-		}
-		if ($itemData['likert_min'] < -100 || $itemData['likert_max'] > 100 || $itemData['likert_min'] >= $itemData['likert_max']) {
-			$validationErrors[] = 'Likert-Min/Max sind ungültig (erlaubt -100 bis 100, Min muss kleiner als Max sein).';
-		}
-		if ($itemData['scale_type'] === 'binary' && !($itemData['likert_min'] === 0 && $itemData['likert_max'] === 1)) {
-			$validationErrors[] = 'Beim Skalentyp "binary" müssen Likert-Min/Max exakt 0 und 1 sein.';
 		}
 		if ($itemData['subscale_key'] !== '' && !preg_match('/^[a-zA-Z0-9_\-]{1,100}$/', $itemData['subscale_key'])) {
 			$validationErrors[] = 'Subskalen-Key darf nur Buchstaben, Zahlen, Unterstriche und Bindestriche enthalten (max. 100 Zeichen).';
@@ -111,9 +99,6 @@
 			'item_id' => 0,
 			'item_no' => 0,
 			'item_text' => '',
-			'scale_type' => 'likert',
-			'likert_min' => 1,
-			'likert_max' => 5,
 			'is_reversed' => 0,
 			'subscale_key' => '',
 			'is_required' => 1
@@ -173,7 +158,7 @@
 
 								$itemPayload = csvRowToItemPayload($row, $header);
 								$itemData = array();
-								$rowErrors = validateItemInput($itemPayload, $allowedScaleTypes, $itemData);
+								$rowErrors = validateItemInput($itemPayload, $itemData);
 								if (!empty($rowErrors)) {
 									foreach ($rowErrors as $rowError) {
 										$errors[] = 'CSV Zeile '.$rowNumber.': '.$rowError;
@@ -191,12 +176,9 @@
 								}
 
 								if ($existingItemId > 0 && $importMode === 'update') {
-									$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_text = :item_text, scale_type = :scale_type, likert_min = :likert_min, likert_max = :likert_max, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
+									$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_text = :item_text, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
 									$updateStmt->execute(array(
 										':item_text' => $itemData['item_text'],
-										':scale_type' => $itemData['scale_type'],
-										':likert_min' => $itemData['likert_min'],
-										':likert_max' => $itemData['likert_max'],
 										':is_reversed' => $itemData['is_reversed'],
 										':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 										':is_required' => $itemData['is_required'],
@@ -205,14 +187,11 @@
 									));
 									$updatedCount++;
 								} else {
-									$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :scale_type, :likert_min, :likert_max, :is_reversed, :subscale_key, :is_required)');
+									$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :is_reversed, :subscale_key, :is_required)');
 									$insertStmt->execute(array(
 										':questionnaire_id' => $questionnaireId,
 										':item_no' => $itemData['item_no'],
 										':item_text' => $itemData['item_text'],
-										':scale_type' => $itemData['scale_type'],
-										':likert_min' => $itemData['likert_min'],
-										':likert_max' => $itemData['likert_max'],
 										':is_reversed' => $itemData['is_reversed'],
 										':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 										':is_required' => $itemData['is_required']
@@ -299,7 +278,7 @@
 
 	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_item'])) {
 		$itemData = array();
-		$validationErrors = validateItemInput($_POST, $allowedScaleTypes, $itemData);
+		$validationErrors = validateItemInput($_POST, $itemData);
 		$errors = array_merge($errors, $validationErrors);
 
 		if (empty($validationErrors)) {
@@ -316,13 +295,11 @@
 
 		if (empty($errors)) {
 			if ($itemData['item_id'] > 0) {
-				$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_no = :item_no, item_text = :item_text, scale_type = :scale_type, likert_min = :likert_min, likert_max = :likert_max, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
+				$updateStmt = $pdo->prepare('UPDATE questionnaire_items SET item_no = :item_no, item_text = :item_text, is_reversed = :is_reversed, subscale_key = :subscale_key, is_required = :is_required WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
 				$updateStmt->execute(array(
 					':item_no' => $itemData['item_no'],
 					':item_text' => $itemData['item_text'],
-					':scale_type' => $itemData['scale_type'],
-					':likert_min' => $itemData['likert_min'],
-					':likert_max' => $itemData['likert_max'],
+
 					':is_reversed' => $itemData['is_reversed'],
 					':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 					':is_required' => $itemData['is_required'],
@@ -331,14 +308,12 @@
 				));
 				$messages[] = 'Item wurde aktualisiert.';
 			} else {
-				$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :scale_type, :likert_min, :likert_max, :is_reversed, :subscale_key, :is_required)');
+				$insertStmt = $pdo->prepare('INSERT INTO questionnaire_items (questionnaire_id, item_no, item_text, is_reversed, subscale_key, is_required) VALUES (:questionnaire_id, :item_no, :item_text, :is_reversed, :subscale_key, :is_required)');
 				$insertStmt->execute(array(
 					':questionnaire_id' => $questionnaireId,
 					':item_no' => $itemData['item_no'],
 					':item_text' => $itemData['item_text'],
-					':scale_type' => $itemData['scale_type'],
-					':likert_min' => $itemData['likert_min'],
-					':likert_max' => $itemData['likert_max'],
+
 					':is_reversed' => $itemData['is_reversed'],
 					':subscale_key' => $itemData['subscale_key'] === '' ? null : $itemData['subscale_key'],
 					':is_required' => $itemData['is_required']
@@ -355,7 +330,7 @@
 		$filterRequired = 'all';
 	}
 
-	$sql = 'SELECT id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id';
+	$sql = 'SELECT id, item_no, item_text, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id';
 	$params = array(':questionnaire_id' => $questionnaireId);
 
 	if ($filterItemNo !== '' && ctype_digit($filterItemNo)) {
@@ -379,7 +354,7 @@
 	$editItemId = isset($_GET['edit_item_id']) ? (int)$_GET['edit_item_id'] : 0;
 	$editItem = null;
 	if ($editItemId > 0) {
-		$editStmt = $pdo->prepare('SELECT id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
+		$editStmt = $pdo->prepare('SELECT id, item_no, item_text, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE id = :id AND questionnaire_id = :questionnaire_id LIMIT 1');
 		$editStmt->execute(array(':id' => $editItemId, ':questionnaire_id' => $questionnaireId));
 		$editItem = $editStmt->fetch(PDO::FETCH_ASSOC);
 		if (!$editItem) {
@@ -441,24 +416,6 @@
 				</div>
 			</div>
 
-			<div class="qnr-form-row">
-				<label>Skalentyp</label>
-				<select class="qnr-select" name="scale_type" required>
-				<option value="likert">likert</option>
-				<option value="binary">binary</option>
-				<option value="custom">custom</option>
-				</select>
-			</div>
-
-			<div class="qnr-form-row">
-				<label>Likert-Min</label>
-				<input class="qnr-input" type="number" name="likert_min" value="1" required>
-			</div>
-
-			<div class="qnr-form-row">
-				<label>Likert-Max</label>
-				<input class="qnr-input" type="number" name="likert_max" value="5" required>
-			</div>
 			</div>
 
 			<div class="qnr-form-row">
@@ -518,24 +475,6 @@
 					<input class="qnr-input" type="number" name="item_no" min="1" value="<?php echo (int)$item['item_no']; ?>" required>
 				</div>
 
-				<div class="qnr-form-row">
-					<label>Skalentyp</label>
-					<select class="qnr-select" name="scale_type" required>
-					<?php foreach ($allowedScaleTypes as $scaleTypeOption) { ?>
-						<option value="<?php echo htmlentities($scaleTypeOption); ?>" <?php echo $item['scale_type'] === $scaleTypeOption ? 'selected' : ''; ?>><?php echo htmlentities($scaleTypeOption); ?></option>
-					<?php } ?>
-					</select>
-				</div>
-
-				<div class="qnr-form-row">
-					<label>Likert-Min</label>
-					<input class="qnr-input" type="number" name="likert_min" value="<?php echo (int)$item['likert_min']; ?>" required>
-				</div>
-
-				<div class="qnr-form-row">
-					<label>Likert-Max</label>
-					<input class="qnr-input" type="number" name="likert_max" value="<?php echo (int)$item['likert_max']; ?>" required>
-				</div>
 				</div>
 
 				<div class="qnr-form-row">
@@ -589,9 +528,6 @@
 		var autoFillBtn = document.getElementById('autofill_item_no');
 		var textInput = document.getElementById('new_item_text');
 		var textCounter = document.getElementById('item_text_counter');
-		var scaleSelect = document.querySelector('#new-item-form select[name="scale_type"]');
-		var likertMinInput = document.querySelector('#new-item-form input[name="likert_min"]');
-		var likertMaxInput = document.querySelector('#new-item-form input[name="likert_max"]');
 
 		var knownNumbers = [<?php
 			$itemNumbers = array();
@@ -620,18 +556,6 @@
 			textCounter.textContent = textInput.value.length + ' Zeichen';
 		}
 
-		function applyScaleDefaults() {
-			if (!scaleSelect || !likertMinInput || !likertMaxInput) {
-				return;
-			}
-			if (scaleSelect.value === 'binary') {
-				likertMinInput.value = '0';
-				likertMaxInput.value = '1';
-			} else if (scaleSelect.value === 'likert' && (!likertMinInput.value || !likertMaxInput.value)) {
-				likertMinInput.value = '1';
-				likertMaxInput.value = '5';
-			}
-		}
 
 		if (autoFillBtn && itemNoInput) {
 			autoFillBtn.addEventListener('click', function () {
@@ -645,10 +569,6 @@
 			updateTextCounter();
 		}
 
-		if (scaleSelect) {
-			scaleSelect.addEventListener('change', applyScaleDefaults);
-			applyScaleDefaults();
-		}
 	})();
 </script>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php'); ?>
