@@ -4,28 +4,28 @@
 
 	//Hier muss der ganze PHP code hin
 	if(isset($_POST['websitesettings'])) {
-			$siteurl = $_POST['siteurl'];
-			$sitename = $_POST['sitename'];
-			$sitedescription = $_POST['sitedescription'];
-			$keywordsmain = $_POST['keywordsmain'];
-			$adminemail = $_POST['adminemail'];
-			$country = $_POST['country'];
-			$robots = $_POST['robots'];
-			$allowregister = $_POST['allowregister'];
-			$author = $_POST['author'];
-			$mainrole = $_POST['mainrole'];
-			$backenddesign = $_POST['backenddesign'];
-			$frontenddesign = $_POST['frontenddesign'];
-			$maincolor = $_POST['maincolor'];
-			$mainfontcolor = $_POST['mainfontcolor'];
-			$mainbackgroundcolor = $_POST['mainbackgroundcolor'];
-			$mainhovercolor = $_POST['mainhovercolor'];
-			$font = $_POST['font'];
-			$mindestalter = $_POST['mindestalter'];
-			$language = $_POST['language'];
-			$fontname = $_POST['fontname'];
-			$recaptcha_secretkey = $_POST['recaptcha_secretkey'];
-			$recaptcha_sitekey = $_POST['recaptcha_sitekey'];
+			$siteurl = trim((string)($_POST['siteurl'] ?? ''));
+			$sitename = trim((string)($_POST['sitename'] ?? ''));
+			$sitedescription = trim((string)($_POST['sitedescription'] ?? ''));
+			$keywordsmain = trim((string)($_POST['keywordsmain'] ?? ''));
+			$adminemail = trim((string)($_POST['adminemail'] ?? ''));
+			$country = (string)($_POST['country'] ?? '');
+			$robots = (string)($_POST['robots'] ?? '');
+			$allowregister = (string)($_POST['allowregister'] ?? '');
+			$author = trim((string)($_POST['author'] ?? ''));
+			$mainrole = (string)($_POST['mainrole'] ?? '');
+			$backenddesign = (string)($_POST['backenddesign'] ?? '');
+			$frontenddesign = (string)($_POST['frontenddesign'] ?? '');
+			$maincolor = trim((string)($_POST['maincolor'] ?? ''));
+			$mainfontcolor = trim((string)($_POST['mainfontcolor'] ?? ''));
+			$mainbackgroundcolor = trim((string)($_POST['mainbackgroundcolor'] ?? ''));
+			$mainhovercolor = trim((string)($_POST['mainhovercolor'] ?? ''));
+			$font = (string)($_POST['font'] ?? '');
+			$mindestalter = trim((string)($_POST['mindestalter'] ?? ''));
+			$language = (string)($_POST['language'] ?? '');
+			$fontname = trim((string)($_POST['fontname'] ?? ''));
+			$recaptcha_secretkey = trim((string)($_POST['recaptcha_secretkey'] ?? ''));
+			$recaptcha_sitekey = trim((string)($_POST['recaptcha_sitekey'] ?? ''));
 			$created = date('Y-m-d');
 		//Überprüfe ob alle Felder ausgefüllt worden sind
 		if(empty($siteurl) || empty($sitename) || empty($sitedescription) || empty($keywordsmain) || empty($adminemail) || empty($country) || empty($author) || empty($mainrole) || empty($backenddesign) || empty($maincolor) || empty($frontenddesign) || empty($mainfontcolor) || empty($mainbackgroundcolor) || empty($mainhovercolor) || empty($font) || empty($mindestalter) || empty($language) || empty($recaptcha_secretkey) || empty($recaptcha_sitekey)) {
@@ -54,7 +54,7 @@
 			$error = true;
 		}
 		//Überprüfe ob selection Felder richtig gesetzt worden sind
-		if ($country != 'germany' && $country != 'austria' && $country != 'swizerland' && $country != 'luxembourg' && $country != 'lichtenstein' && $country != 'unitedstates' && $country != 'unitedkindom' && $country != 'canada' && $country != 'australia' && $country != 'newzealand' && $country != 'ireland') {
+		if ($country != 'germany' && $country != 'austria' && $country != 'switzerland' && $country != 'luxembourg' && $country != 'lichtenstein' && $country != 'unitedstates' && $country != 'unitedkingdom' && $country != 'canada' && $country != 'australia' && $country != 'newzealand' && $country != 'ireland') {
 			$error_msg = 'Bitte gebe ein gültiges Land an';
 			$error= true;
 		}
@@ -64,6 +64,10 @@
 		}
 		if ($robots != '0' && $robots != '1' && $robots !== 1 && $robots !== 0) {
 			$error_msg = 'Bitte wähle aus ob die Seite indexiert werden soll oder nicht';
+			$error= true;
+		}
+		if ($allowregister !== '0' && $allowregister !== '1') {
+			$error_msg = 'Bitte wähle aus ob Registrierungen erlaubt sein sollen';
 			$error= true;
 		}
 		if ($mainrole != 'user' && $mainrole != 'member' && $mainrole != 'supporter') {

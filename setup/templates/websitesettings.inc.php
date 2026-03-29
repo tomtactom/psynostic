@@ -11,8 +11,14 @@
 					display: block;
 				}
 			</style>
+				<?php
+					$defaultSiteUrl = '';
+					if (isset($_SERVER['HTTP_REFERER'])) {
+						$defaultSiteUrl = str_replace("/setup/", "", (string)$_SERVER['HTTP_REFERER']);
+					}
+				?>
 				<label for="inputSiteurl">Website URL:
-					<input type="url" id="inputSiteurl" name="siteurl" minlength="12" maxlength="255" value="<?php echo str_replace("/setup/", "", $_SERVER['HTTP_REFERER']); ?>" required>
+					<input type="url" id="inputSiteurl" name="siteurl" minlength="12" maxlength="255" value="<?php echo $defaultSiteUrl; ?>" required>
 				</label>
 				<label for="inputSitename">Website Name:
 					<input type="text" id="inputSitename" name="sitename" maxlength="255" required>
