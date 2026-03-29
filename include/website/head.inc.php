@@ -1,51 +1,50 @@
 <?php
-    @session_start();
-    require('../include/database/database.php');
-    require('../include/functions.inc.php');
-	require('../include/settings.inc.php');
-	require($options['pluginpath']."/loadplugins.inc.php");
-	add("http://".$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI']."");
+@session_start();
+require('../include/database/database.php');
+require('../include/functions.inc.php');
+require('../include/settings.inc.php');
+require($options['pluginpath'] . '/loadplugins.inc.php');
+
+$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+add($scheme . '://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']);
 ?>
-<html lang="<?php echo $options['short_language']; ?>">
+<!doctype html>
+<html lang="<?php echo htmlspecialchars($options['short_language'], ENT_QUOTES, 'UTF-8'); ?>">
 <head>
 	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale: 1.0, user-scalable=0">
-	<meta name="language" content="<?php echo $options['short_language']; ?>">
-	<meta name="date" content="<?php echo $options['created']; ?>">
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="language" content="<?php echo htmlspecialchars($options['short_language'], ENT_QUOTES, 'UTF-8'); ?>">
+	<meta name="date" content="<?php echo htmlspecialchars($options['created'], ENT_QUOTES, 'UTF-8'); ?>">
 	<style>
 		:root {
 			--maincolor: <?php echo $options['maincolor']; ?>;
 			--mainfontcolor: <?php echo $options['mainfontcolor']; ?>;
 			--mainbackgroundcolor: <?php echo $options['mainbackgroundcolor']; ?>;
-			--mainhovercolor: <?php echo $options['mainhovercolor']; ?>
+			--mainhovercolor: <?php echo $options['mainhovercolor']; ?>;
 		}
-		<?php if ($options['font'] != 'none' || empty($options['font'])) { ?>
-		@font-face { 
-			font-family: '<?php echo $options['fontname']; ?>';
-            src: url('<?php echo $options['siteurl']; ?>/include/database/fonts/<?php echo $options['font'];; ?>');
+		<?php if ($options['font'] !== 'none' && !empty($options['font'])) { ?>
+		@font-face {
+			font-family: '<?php echo addslashes($options['fontname']); ?>';
+			src: url('<?php echo $options['siteurl']; ?>/include/database/fonts/<?php echo rawurlencode($options['font']); ?>');
 		}
 		html,
-		body { 
-			font-family: <?php echo $options['fontname']; ?>, sans-serif; 
+		body {
+			font-family: <?php echo $options['fontname']; ?>, sans-serif;
 		}
 		<?php } ?>
 	</style>
-	<title><?php echo $title; ?> | <?php echo $options['sitename']; ?></title>
-	<meta name="keywords" content="<?php echo $options['keywordsmain']; ?>">
-	<meta name="description" content="<?php echo $options['sitedescription']; ?>">
-	<meta name="robots" content="<?php echo $options['robots']; ?>">
-	<meta http-equiv="language" content="<?php echo $options['language'].", ".$options['short_language']; ?>">
-	<meta name="author" content="<?php echo $options['author']; ?>">
+	<title><?php echo htmlspecialchars($title, ENT_QUOTES, 'UTF-8'); ?> | <?php echo htmlspecialchars($options['sitename'], ENT_QUOTES, 'UTF-8'); ?></title>
+	<meta name="keywords" content="<?php echo htmlspecialchars($options['keywordsmain'], ENT_QUOTES, 'UTF-8'); ?>">
+	<meta name="description" content="<?php echo htmlspecialchars($options['sitedescription'], ENT_QUOTES, 'UTF-8'); ?>">
+	<meta name="robots" content="<?php echo htmlspecialchars($options['robots'], ENT_QUOTES, 'UTF-8'); ?>">
+	<meta http-equiv="content-language" content="<?php echo htmlspecialchars($options['language'] . ', ' . $options['short_language'], ENT_QUOTES, 'UTF-8'); ?>">
+	<meta name="author" content="<?php echo htmlspecialchars($options['author'], ENT_QUOTES, 'UTF-8'); ?>">
 	<link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
-	<meta name="msapplication-TileColor" content="<?php echo $options['maincolor']; ?>">
-	<meta name="theme-color" content="<?php echo $options['maincolor']; ?>">
+	<meta name="msapplication-TileColor" content="<?php echo htmlspecialchars($options['maincolor'], ENT_QUOTES, 'UTF-8'); ?>">
+	<meta name="theme-color" content="<?php echo htmlspecialchars($options['maincolor'], ENT_QUOTES, 'UTF-8'); ?>">
 	<link rel="stylesheet" href="<?php echo $options['siteurl']; ?>/include/style.css">
 	<link rel="stylesheet" href="<?php echo $options['siteurl']; ?>/design/<?php echo $options['frontenddesign']; ?>/style.css">
-	<?php 
-		include('design/'.$options['frontenddesign'].'/head.php');
-	?>
+	<?php include('design/' . $options['frontenddesign'] . '/head.php'); ?>
 </head>
-	<?php 
-		include('../include/website/header.inc.php');
-	?>
-	
+<body>
+<?php include_once('design/' . $options['frontenddesign'] . '/header.php'); ?>

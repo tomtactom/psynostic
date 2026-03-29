@@ -440,3 +440,71 @@ th.headerSortDown {
 		min-width: 8.5rem;
 	}
 }
+
+/* Baseline UX/Stability improvements (CSS 2025 friendly) */
+html {
+	color-scheme: light;
+	text-size-adjust: 100%;
+	-webkit-text-size-adjust: 100%;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	line-height: 1.5;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+}
+
+img,
+svg,
+video,
+canvas {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+.qnr-btn,
+button,
+input[type="submit"],
+input[type="button"] {
+	min-height: 2.5rem;
+	transition: background-color 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+
+.qnr-btn:hover,
+button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover {
+	filter: brightness(0.97);
+}
+
+.qnr-btn:active,
+button:active,
+input[type="submit"]:active,
+input[type="button"]:active {
+	transform: translateY(1px);
+}
+
+.qnr-input:invalid,
+.qnr-select:invalid,
+.qnr-textarea:invalid {
+	border-color: #c53030;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}

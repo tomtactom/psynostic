@@ -1,4 +1,3 @@
-<body>
-<?php 
-	include_once('design/'.$options['frontenddesign'].'/header.php');
+<?php
+include_once('design/' . $options['frontenddesign'] . '/header.php');
 ?>
