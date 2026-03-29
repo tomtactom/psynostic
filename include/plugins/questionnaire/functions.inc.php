@@ -416,6 +416,22 @@ function questionnaireEvaluateQualityFromData(array $items, array $responsesByIt
 }
 
 function questionnaireEvaluateSessionQuality(PDO $pdo, array $questionnaire, $sessionId) {
+	if (!isset($questionnaire['id']) || (int)$questionnaire['id'] <= 0) {
+		return array(
+			'warnings' => array('Qualitätsprüfung übersprungen: Fragebogen-ID fehlt.'),
+			'metrics' => array(
+				'answered_ratio_total' => 0,
+				'answered_items_total' => 0,
+				'total_items' => 0,
+				'duration_seconds' => null,
+				'reliability' => array(
+					'enabled' => false,
+					'label' => null
+				)
+			)
+		);
+	}
+
 	$itemStmt = $pdo->prepare('SELECT id, item_no, subscale_key FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id');
 	$itemStmt->execute(array(':questionnaire_id' => (int)$questionnaire['id']));
 	$items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
