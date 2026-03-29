@@ -9,6 +9,12 @@
 	$errors = array();
 	$messages = array();
 
+	$autoInstallNotice = '';
+	if (isset($_SESSION['questionnaire_schema_autoinstall_notice'])) {
+		$autoInstallNotice = (string)$_SESSION['questionnaire_schema_autoinstall_notice'];
+		unset($_SESSION['questionnaire_schema_autoinstall_notice']);
+	}
+
 	if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_questionnaire'])) {
 		$titleInput = isset($_POST['title']) ? trim((string)$_POST['title']) : '';
 		$slugInput = isset($_POST['slug']) ? trim((string)$_POST['slug']) : '';
@@ -92,8 +98,11 @@
 
 	<section>
 		<h2>Rückmeldungen</h2>
-		<?php if (empty($errors) && empty($messages)) { ?>
+		<?php if ($autoInstallNotice === '' && empty($errors) && empty($messages)) { ?>
 			<p>Keine Rückmeldungen.</p>
+		<?php } ?>
+		<?php if ($autoInstallNotice !== '') { ?>
+			<p><?php echo htmlentities($autoInstallNotice); ?></p>
 		<?php } ?>
 		<?php if (!empty($errors)) { ?>
 			<ul>
