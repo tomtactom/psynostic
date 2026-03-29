@@ -569,9 +569,19 @@ function questionnaire_show_frontend() {
 				}
 			}
 
+			if ($action === 'back_to_demographics') {
+				$postedDemographics = questionnaireReadDemographicsFromPost($demographicFields);
+				$postedItems = questionnaireReadItemsFromPost($items);
+				$demographicValidation = questionnaireValidateDemographics($demographicFields, $postedDemographics);
+				$flow['pending_demographics'] = $demographicValidation['values'];
+				$flow['pending_items'] = $postedItems;
+				$currentStep = 'demographics';
+			}
+
 			if ($action === 'finish') {
 				$postedDemographics = questionnaireReadDemographicsFromPost($demographicFields);
 				$postedItems = questionnaireReadItemsFromPost($items);
+				$flow['pending_items'] = $postedItems;
 				$demographicValidation = questionnaireValidateDemographics($demographicFields, $postedDemographics);
 				$itemValidation = questionnaireValidateItems($items, $postedItems);
 				$errors = array_merge($errors, $demographicValidation['errors'], $itemValidation['errors']);
@@ -595,6 +605,7 @@ function questionnaire_show_frontend() {
 						$demographicValidation['values'],
 						$itemValidation['values']
 					);
+					unset($flow['pending_items']);
 					$flow['last_result'] = $result;
 					$currentStep = 'done';
 					$messages[] = $result['already_completed'] ? 'Die Durchführung war bereits abgeschlossen. Ergebnis wird erneut angezeigt.' : 'Fragebogen erfolgreich abgeschlossen.';
@@ -615,63 +626,110 @@ function questionnaire_show_frontend() {
 		$currentStep = 'intro';
 	}
 
+	$stepLabels = array(
+		'intro' => 'Einführung',
+		'demographics' => 'Demografische Angaben',
+		'items' => 'Items beantworten',
+		'done' => 'Abschluss'
+	);
+	$stepOrder = array('intro', 'demographics', 'items', 'done');
+	$currentStepPosition = array_search($currentStep, $stepOrder, true);
+	$currentStepPosition = $currentStepPosition === false ? 1 : ((int)$currentStepPosition + 1);
+
+	echo '<main class="questionnaire-frontend-main">';
 	echo '<h1>'.htmlentities((string)$questionnaire['title']).'</h1>';
+	echo '<nav aria-label="Fortschritt des Fragebogens">';
+	echo '<ol>';
+	foreach ($stepOrder as $index => $stepKey) {
+		$position = $index + 1;
+		$ariaCurrent = $stepKey === $currentStep ? ' aria-current="step"' : '';
+		echo '<li'.$ariaCurrent.'>';
+		echo '<span>'.(int)$position.'. '.htmlentities($stepLabels[$stepKey]).'</span>';
+		echo '</li>';
+	}
+	echo '</ol>';
+	echo '</nav>';
+
+	echo '<p id="questionnaire-step-help">Schritt '.(int)$currentStepPosition.' von '.count($stepOrder).'</p>';
+
 	if (!empty($messages)) {
+		echo '<div id="questionnaire-messages" aria-live="polite">';
 		echo '<ul>';
 		foreach ($messages as $message) {
 			echo '<li>'.htmlentities((string)$message).'</li>';
 		}
 		echo '</ul>';
+		echo '</div>';
 	}
 	if (!empty($errors)) {
+		echo '<div id="questionnaire-errors" role="alert" aria-live="assertive" tabindex="-1">';
 		echo '<ul>';
 		foreach ($errors as $error) {
 			echo '<li>'.htmlentities((string)$error).'</li>';
 		}
 		echo '</ul>';
+		echo '</div>';
 	}
 
 	if ($currentStep === 'intro') {
+		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Einführung</h2>';
 		echo '<p>'.nl2br(htmlentities((string)$questionnaire['intro_text'])).'</p>';
 		echo '<form method="post" action="?step=demographics">';
 		echo '<input type="hidden" name="action" value="start">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		echo '<button type="submit">Fragebogen starten</button>';
 		echo '</form>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	if ($currentStep === 'demographics') {
 		$values = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
-		echo '<h2>1) Demografische Angaben</h2>';
+		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Demografische Angaben</h2>';
 		echo '<form method="post" action="?step=items">';
 		echo '<input type="hidden" name="action" value="save_demographics">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		questionnaireRenderDemographicInputs($demographicFields, $values);
 		echo '<button type="submit">Weiter zu den Items</button>';
 		echo '</form>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	if ($currentStep === 'items') {
 		$demoValues = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
-		$itemValues = !empty($postedItems) ? $postedItems : array();
-		echo '<h2>2) Items beantworten</h2>';
+		$itemValues = !empty($postedItems) ? $postedItems : (isset($flow['pending_items']) && is_array($flow['pending_items']) ? $flow['pending_items'] : array());
+		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Items beantworten</h2>';
 		echo '<form method="post" action="?step=done">';
 		echo '<input type="hidden" name="action" value="finish">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		echo '<input type="hidden" name="completion_token" value="'.htmlentities((string)$flow['completion_token']).'">';
 		questionnaireRenderHiddenDemographics($demographicFields, $demoValues);
 		questionnaireRenderItems($items, $itemValues);
+		echo '<button type="submit" name="action" value="back_to_demographics" formaction="?step=demographics">Zurück</button> ';
 		echo '<button type="submit">Abschließen</button>';
 		echo '</form>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	$result = isset($flow['last_result']) && is_array($flow['last_result']) ? $flow['last_result'] : null;
-	echo '<h2>3) Abschluss</h2>';
+	echo '<section aria-labelledby="questionnaire-step-heading">';
+	echo '<h2 id="questionnaire-step-heading" tabindex="-1">Abschluss</h2>';
 	if (!$result) {
 		echo '<p>Kein Ergebnis vorhanden.</p>';
+		echo '</section>';
+		echo '</main>';
+		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 	echo '<p>Session-ID: '.(int)$result['session_id'].'</p>';
@@ -701,6 +759,24 @@ function questionnaire_show_frontend() {
 	echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 	echo '<button type="submit">Neue Durchführung starten</button>';
 	echo '</form>';
+	echo '</section>';
+	echo '</main>';
+	questionnaireRenderFrontendFocusScript();
+}
+
+function questionnaireRenderFrontendFocusScript() {
+	if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+		return;
+	}
+
+	echo '<script>';
+	echo '(function () {';
+	echo 'var errorRegion = document.getElementById("questionnaire-errors");';
+	echo 'if (errorRegion) { errorRegion.focus(); return; }';
+	echo 'var heading = document.getElementById("questionnaire-step-heading");';
+	echo 'if (heading) { heading.focus(); }';
+	echo '}());';
+	echo '</script>';
 }
 
 function questionnaireLoadActiveQuestionnaire(PDO $pdo) {
