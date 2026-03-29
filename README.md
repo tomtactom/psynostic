@@ -9,3 +9,7 @@ Aktivierung im CMS:
 2. `Einstellungen` öffnen.
 3. Bei **Backend Design** und **Frontend Design** jeweils `lupusnova` auswählen.
 4. Speichern.
+
+## Normgruppen-Zuordnung für abgeschlossene Sessions
+Eine referenzhafte Implementierung der Zuordnungslogik liegt in `include/plugins/norm_assignment.inc.php`.
+Das zugehörige Regel-JSON-Schema ist in `docs/norm-rule-schema.md` dokumentiert.
