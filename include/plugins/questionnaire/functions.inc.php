@@ -625,12 +625,16 @@ function questionnaire_show_frontend() {
 	if ($currentStep === 'done' && !isset($flow['last_result'])) {
 		$currentStep = 'intro';
 	}
+	$collectedErrors = questionnaireCollectFieldErrors($errors);
 
 	echo '<style>
-		.form-group { margin-bottom: 1rem; }
-		.form-field { margin-bottom: 0.9rem; }
-		.form-field label { display: inline-block; margin-bottom: 0.25rem; }
-		.field-hint { margin: 0.25rem 0 0; font-size: 0.92em; color: #555; }
+		.qnr-layout--frontend { max-width: 920px; margin: 0 auto; gap: 1rem; }
+		.qnr-step-nav { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+		.qnr-step-nav li[aria-current="step"] span { font-weight: 700; text-decoration: underline; }
+		.qnr-form-row { margin-bottom: 0.95rem; }
+		.qnr-form-row label { display: inline-block; margin-bottom: 0.25rem; }
+		.qnr-input { width: 100%; max-width: 32rem; }
+		.qnr-field-error { margin: 0.3rem 0 0; color: #b71c1c; min-height: 1.1rem; }
 		.required-note { margin-bottom: 0.75rem; font-size: 0.95em; }
 		.required-marker { color: #b00020; font-weight: 700; }
 		.required-text { font-size: 0.9em; }
@@ -638,6 +642,7 @@ function questionnaire_show_frontend() {
 		.likert-anchor { font-size: 0.9em; color: #444; }
 		.radio-group { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 		.radio-option { display: inline-flex; align-items: center; gap: 0.25rem; }
+		.qnr-form-actions { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-top: 0.85rem; }
 	</style>';
 
 	$stepLabels = array(
@@ -650,10 +655,11 @@ function questionnaire_show_frontend() {
 	$currentStepPosition = array_search($currentStep, $stepOrder, true);
 	$currentStepPosition = $currentStepPosition === false ? 1 : ((int)$currentStepPosition + 1);
 
-	echo '<main class="questionnaire-frontend-main">';
+	echo '<main class="qnr-layout qnr-layout--frontend">';
+	echo '<section class="qnr-card">';
 	echo '<h1>'.htmlentities((string)$questionnaire['title']).'</h1>';
 	echo '<nav aria-label="Fortschritt des Fragebogens">';
-	echo '<ol>';
+	echo '<ol class="qnr-step-nav">';
 	foreach ($stepOrder as $index => $stepKey) {
 		$position = $index + 1;
 		$ariaCurrent = $stepKey === $currentStep ? ' aria-current="step"' : '';
@@ -665,28 +671,32 @@ function questionnaire_show_frontend() {
 	echo '</nav>';
 
 	echo '<p id="questionnaire-step-help">Schritt '.(int)$currentStepPosition.' von '.count($stepOrder).'</p>';
+	echo '</section>';
 
 	if (!empty($messages)) {
-		echo '<div id="questionnaire-messages" aria-live="polite">';
+		echo '<section class="qnr-card"><div id="questionnaire-messages" class="qnr-alert qnr-alert--success" aria-live="polite">';
 		echo '<ul>';
 		foreach ($messages as $message) {
 			echo '<li>'.htmlentities((string)$message).'</li>';
 		}
 		echo '</ul>';
-		echo '</div>';
+		echo '</div></section>';
 	}
 	if (!empty($errors)) {
-		echo '<div id="questionnaire-errors" role="alert" aria-live="assertive" tabindex="-1">';
+		echo '<section class="qnr-card">';
+		questionnaireRenderErrorSummary($collectedErrors['summary']);
+		echo '<div id="questionnaire-errors" class="qnr-alert qnr-alert--error" role="alert" aria-live="assertive" tabindex="-1">';
 		echo '<ul>';
 		foreach ($collectedErrors['general'] as $error) {
 			echo '<li>'.htmlentities((string)$error['message']).'</li>';
 		}
 		echo '</ul>';
 		echo '</div>';
+		echo '</section>';
 	}
 
 	if ($currentStep === 'intro') {
-		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<section class="qnr-card" aria-labelledby="questionnaire-step-heading">';
 		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Einführung</h2>';
 		echo '<p>'.nl2br(htmlentities((string)$questionnaire['intro_text'])).'</p>';
 		echo '<form class="qnr-card" method="post" action="?step=demographics">';
@@ -696,22 +706,26 @@ function questionnaire_show_frontend() {
 		echo '</form>';
 		echo '</section>';
 		echo '</main>';
+		questionnaireRenderFrontendValidationScript();
 		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	if ($currentStep === 'demographics') {
 		$values = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
-		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<section class="qnr-card" aria-labelledby="questionnaire-step-heading">';
 		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Demografische Angaben</h2>';
 		echo '<form method="post" action="?step=items">';
 		echo '<input type="hidden" name="action" value="save_demographics">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-		questionnaireRenderDemographicInputs($demographicFields, $values);
+		questionnaireRenderDemographicInputs($demographicFields, $values, $collectedErrors['field_keys']);
+		echo '<div class="qnr-form-actions">';
 		echo '<button class="qnr-btn qnr-focusable" type="submit">Weiter zu den Items</button>';
+		echo '</div>';
 		echo '</form>';
 		echo '</section>';
 		echo '</main>';
+		questionnaireRenderFrontendValidationScript();
 		questionnaireRenderFrontendFocusScript();
 		return;
 	}
@@ -719,25 +733,28 @@ function questionnaire_show_frontend() {
 	if ($currentStep === 'items') {
 		$demoValues = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
 		$itemValues = !empty($postedItems) ? $postedItems : (isset($flow['pending_items']) && is_array($flow['pending_items']) ? $flow['pending_items'] : array());
-		echo '<section aria-labelledby="questionnaire-step-heading">';
+		echo '<section class="qnr-card" aria-labelledby="questionnaire-step-heading">';
 		echo '<h2 id="questionnaire-step-heading" tabindex="-1">Items beantworten</h2>';
 		echo '<form method="post" action="?step=done">';
 		echo '<input type="hidden" name="action" value="finish">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		echo '<input type="hidden" name="completion_token" value="'.htmlentities((string)$flow['completion_token']).'">';
 		questionnaireRenderHiddenDemographics($demographicFields, $demoValues);
-		questionnaireRenderItems($items, $itemValues);
-		echo '<button type="submit" name="action" value="back_to_demographics" formaction="?step=demographics">Zurück</button> ';
-		echo '<button type="submit">Abschließen</button>';
+		questionnaireRenderItems($items, $itemValues, $collectedErrors['item_ids']);
+		echo '<div class="qnr-form-actions">';
+		echo '<button class="qnr-btn qnr-btn--secondary qnr-focusable" type="submit" name="action" value="back_to_demographics" formaction="?step=demographics">Zurück</button> ';
+		echo '<button class="qnr-btn qnr-focusable" type="submit">Abschließen</button>';
+		echo '</div>';
 		echo '</form>';
 		echo '</section>';
 		echo '</main>';
+		questionnaireRenderFrontendValidationScript();
 		questionnaireRenderFrontendFocusScript();
 		return;
 	}
 
 	$result = isset($flow['last_result']) && is_array($flow['last_result']) ? $flow['last_result'] : null;
-	echo '<section aria-labelledby="questionnaire-step-heading">';
+	echo '<section class="qnr-card" aria-labelledby="questionnaire-step-heading">';
 	echo '<h2 id="questionnaire-step-heading" tabindex="-1">Abschluss</h2>';
 	if (!$result) {
 		echo '<p>Kein Ergebnis vorhanden.</p>';
@@ -822,6 +839,7 @@ function questionnaire_show_frontend() {
 	echo '</form>';
 	echo '</section>';
 	echo '</main>';
+	questionnaireRenderFrontendValidationScript();
 	questionnaireRenderFrontendFocusScript();
 }
 
@@ -836,6 +854,61 @@ function questionnaireRenderFrontendFocusScript() {
 	echo 'if (errorRegion) { errorRegion.focus(); return; }';
 	echo 'var heading = document.getElementById("questionnaire-step-heading");';
 	echo 'if (heading) { heading.focus(); }';
+	echo '}());';
+	echo '</script>';
+}
+
+function questionnaireRenderFrontendValidationScript() {
+	echo '<script>';
+	echo '(function () {';
+	echo 'var forms = document.querySelectorAll("main.qnr-layout--frontend form");';
+	echo 'if (!forms.length) { return; }';
+	echo 'var setError = function (field, message) {';
+	echo 'if (!field) { return; }';
+	echo 'var errorId = field.id ? field.id + "_error" : "";';
+	echo 'var errorNode = errorId ? document.getElementById(errorId) : null;';
+	echo 'field.setAttribute("aria-invalid", message ? "true" : "false");';
+	echo 'if (errorNode) { errorNode.textContent = message || ""; }';
+	echo '};';
+	echo 'var readMessage = function (field) {';
+	echo 'if (!field || !field.validity) { return ""; }';
+	echo 'if (field.validity.valueMissing) { return "Dieses Feld ist erforderlich."; }';
+	echo 'if (field.validity.rangeUnderflow || field.validity.rangeOverflow) { return "Wert liegt außerhalb des erlaubten Bereichs."; }';
+	echo 'if (field.validity.tooLong) { return "Maximale Zeichenlänge überschritten."; }';
+	echo 'if (field.validity.patternMismatch || field.validity.typeMismatch || field.validity.badInput) { return "Bitte Eingabeformat prüfen."; }';
+	echo 'return "";';
+	echo '};';
+	echo 'var validateRadioGroup = function (form, radioInput) {';
+	echo 'if (!radioInput || !radioInput.name) { return true; }';
+	echo 'var radios = form.querySelectorAll(\'input[type="radio"][name="\' + CSS.escape(radioInput.name) + \'"]\');';
+	echo 'if (!radios.length) { return true; }';
+	echo 'var required = radios[0].required;';
+	echo 'var hasChecked = Array.prototype.some.call(radios, function (radio) { return radio.checked; });';
+	echo 'var first = radios[0];';
+	echo 'var message = (!hasChecked && required) ? "Bitte eine Option auswählen." : "";';
+	echo 'radios.forEach(function (radio) { setError(radio, message); });';
+	echo 'return message === "";';
+	echo '};';
+	echo 'forms.forEach(function (form) {';
+	echo 'form.addEventListener("input", function (event) {';
+	echo 'var target = event.target;';
+	echo 'if (!target) { return; }';
+	echo 'if (target.type === "radio") { validateRadioGroup(form, target); return; }';
+	echo 'setError(target, readMessage(target));';
+	echo '});';
+	echo 'form.addEventListener("submit", function (event) {';
+	echo 'var firstInvalid = null;';
+	echo 'var valid = true;';
+	echo 'Array.prototype.forEach.call(form.elements, function (field) {';
+	echo 'if (!(field instanceof HTMLElement) || field.disabled || field.type === "hidden" || field.type === "submit") { return; }';
+	echo 'if (field.type === "radio") { if (!validateRadioGroup(form, field) && !firstInvalid) { firstInvalid = field; valid = false; } return; }';
+	echo 'var msg = readMessage(field);';
+	echo 'setError(field, msg);';
+	echo 'if (msg && !firstInvalid) { firstInvalid = field; valid = false; }';
+	echo '});';
+	echo 'if (!valid && firstInvalid) { event.preventDefault(); firstInvalid.focus(); }';
+	echo '});';
+	echo '});';
 	echo '}());';
 	echo '</script>';
 }
@@ -1083,6 +1156,10 @@ function questionnaireRenderDemographicInputs(array $fields, array $values, arra
 		$current = array_key_exists($key, $values) ? (string)$values[$key] : '';
 		$fieldId = 'demo_'.htmlentities($key);
 		$hintId = 'demo_'.htmlentities($key).'_hint';
+		$errorId = 'demo_'.htmlentities($key).'_error';
+		$fieldError = isset($errorsByFieldKey[$key]['message']) ? (string)$errorsByFieldKey[$key]['message'] : '';
+		$describedBy = $hintId.($fieldError !== '' ? ' '.$errorId : '');
+		$invalidAttr = $fieldError !== '' ? ' aria-invalid="true"' : '';
 		$requiredText = $isRequired ? '<span class="required-marker" aria-hidden="true">*</span><span class="required-text"> Pflichtfeld</span>' : '';
 		$rules = array();
 		if (isset($field['allowed_values_json']) && $field['allowed_values_json'] !== null && trim((string)$field['allowed_values_json']) !== '') {
@@ -1091,20 +1168,21 @@ function questionnaireRenderDemographicInputs(array $fields, array $values, arra
 				$rules = $decodedRules;
 			}
 		}
-		echo '<div class="form-field">';
+		echo '<div class="qnr-form-row form-field">';
 		echo '<label for="'.$fieldId.'">'.htmlentities($label).$requiredText.'</label>';
 		if ($type === 'integer' || $type === 'number') {
 			$minAttr = isset($rules['min']) && is_numeric($rules['min']) ? ' min="'.(float)$rules['min'].'"' : '';
 			$maxAttr = isset($rules['max']) && is_numeric($rules['max']) ? ' max="'.(float)$rules['max'].'"' : '';
 			$stepAttr = $type === 'integer' ? ' step="1"' : ' step="any"';
 			$inputMode = $type === 'integer' ? 'numeric' : 'decimal';
-			echo '<input type="number" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" inputmode="'.$inputMode.'"'.$minAttr.$maxAttr.$stepAttr.' aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'>';
+			echo '<input class="qnr-input" type="number" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" inputmode="'.$inputMode.'"'.$minAttr.$maxAttr.$stepAttr.' aria-describedby="'.$describedBy.'" '.($isRequired ? 'required' : '').$invalidAttr.'>';
 			echo '<p class="field-hint" id="'.$hintId.'">Numerischer Wert'.($isRequired ? ', erforderlich' : ', optional').'.</p>';
 		} else {
 			$hintText = 'Textfeld, maximal 255 Zeichen'.($isRequired ? ', erforderlich' : ', optional').'.';
-			echo '<input type="text" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'>';
+			echo '<input class="qnr-input" type="text" id="'.$fieldId.'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" aria-describedby="'.$describedBy.'" '.($isRequired ? 'required' : '').$invalidAttr.'>';
 			echo '<p class="field-hint" id="'.$hintId.'">'.$hintText.'</p>';
 		}
+		echo '<p class="qnr-field-error" id="'.$errorId.'" role="status" aria-live="polite">'.htmlentities($fieldError).'</p>';
 		echo '</div>';
 	}
 	echo '</div>';
@@ -1136,20 +1214,25 @@ function questionnaireRenderItems(array $items, array $values, array $errorsByIt
 		$current = array_key_exists($itemId, $values) ? (string)$values[$itemId] : '';
 		$legendId = 'item_'.$itemId.'_legend';
 		$hintId = 'item_'.$itemId.'_hint';
-		echo '<fieldset class="form-field">';
+		$errorId = 'item_'.$itemId.'_error';
+		$fieldError = isset($errorsByItemId[$itemId]['message']) ? (string)$errorsByItemId[$itemId]['message'] : '';
+		echo '<fieldset class="qnr-form-row form-field" id="item_'.$itemId.'">';
 		echo '<legend id="'.$legendId.'">'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' <span class="required-marker" aria-hidden="true">*</span><span class="required-text"> Pflichtfeld</span>' : '').'</legend>';
 		echo '<p class="field-hint" id="'.$hintId.'">Bitte einen Wert von '.$min.' bis '.$max.' auswählen.</p>';
 		echo '<div class="likert-scale">';
 		echo '<span class="likert-anchor likert-anchor-left">trifft gar nicht zu</span>';
-		echo '<div class="radio-group" role="radiogroup" aria-labelledby="'.$legendId.'" aria-describedby="'.$hintId.'">';
+		$describedBy = $hintId.($fieldError !== '' ? ' '.$errorId : '');
+		echo '<div class="radio-group" role="radiogroup" aria-labelledby="'.$legendId.'" aria-describedby="'.$describedBy.'">';
 		for ($value = $min; $value <= $max; $value++) {
 			$checked = ($current !== '' && (int)$current === $value) ? 'checked' : '';
 			$radioId = 'item_'.$itemId.'_value_'.$value;
-			echo '<div class="radio-option"><input type="radio" id="'.$radioId.'" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' aria-describedby="'.$hintId.'" '.($isRequired ? 'required' : '').'><label for="'.$radioId.'">'.$value.'</label></div>';
+			$invalidAttr = $fieldError !== '' ? ' aria-invalid="true"' : '';
+			echo '<div class="radio-option"><input type="radio" id="'.$radioId.'" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' aria-describedby="'.$describedBy.'" '.($isRequired ? 'required' : '').$invalidAttr.'><label for="'.$radioId.'">'.$value.'</label></div>';
 		}
 		echo '</div>';
 		echo '<span class="likert-anchor likert-anchor-right">trifft völlig zu</span>';
 		echo '</div>';
+		echo '<p class="qnr-field-error" id="'.$errorId.'" role="status" aria-live="polite">'.htmlentities($fieldError).'</p>';
 		echo '</fieldset>';
 	}
 	echo '</div>';
