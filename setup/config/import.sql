@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS `questionnaire_demographic_fields` (
 CREATE TABLE IF NOT EXISTS `questionnaire_sessions` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `questionnaire_id` int(10) unsigned NOT NULL,
-  `user_id` int(10) unsigned NOT NULL,
+  `user_id` int(10) unsigned DEFAULT NULL,
   `started_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `finished_at` timestamp NULL DEFAULT NULL,
   `completion_status` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -143,6 +143,18 @@ CREATE TABLE IF NOT EXISTS `questionnaire_sessions` (
     FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_questionnaire_sessions_user_id`
     FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `questionnaire_session_demographics` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `session_id` int(10) unsigned NOT NULL,
+  `field_key` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `demographic_value` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_questionnaire_session_demographics_session_id` (`session_id`),
+  KEY `idx_questionnaire_session_demographics_field_key` (`field_key`),
+  CONSTRAINT `fk_questionnaire_session_demographics_session_id`
+    FOREIGN KEY (`session_id`) REFERENCES `questionnaire_sessions` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `questionnaire_answers` (

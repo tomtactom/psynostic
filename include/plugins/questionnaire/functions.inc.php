@@ -283,6 +283,550 @@ function questionnaire_show_backend_overview($title, $description) {
 }
 
 function questionnaire_show_frontend() {
-	echo '<h1>Fragebogen</h1>';
-	echo '<p>Hier können Fragebögen bereitgestellt und ausgefüllt werden.</p>';
+	global $pdo;
+
+	$questionnaire = questionnaireLoadActiveQuestionnaire($pdo);
+	if (!$questionnaire) {
+		echo '<h1>Fragebogen</h1>';
+		echo '<p>Aktuell ist kein aktiver Fragebogen verfügbar.</p>';
+		return;
+	}
+
+	if (!isset($_SESSION['questionnaire_flow']) || !is_array($_SESSION['questionnaire_flow'])) {
+		$_SESSION['questionnaire_flow'] = array();
+	}
+	$flow = &$_SESSION['questionnaire_flow'];
+	if (!isset($flow['csrf_token']) || !is_string($flow['csrf_token']) || $flow['csrf_token'] === '') {
+		$flow['csrf_token'] = bin2hex(random_bytes(32));
+	}
+
+	$demographicFields = questionnaireLoadDemographicFields($pdo, (int)$questionnaire['id']);
+	$items = questionnaireLoadItems($pdo, (int)$questionnaire['id']);
+	$errors = array();
+	$messages = array();
+	$postedDemographics = array();
+	$postedItems = array();
+
+	$currentStep = isset($_GET['step']) ? (string)$_GET['step'] : 'intro';
+	$allowedSteps = array('intro', 'demographics', 'items', 'done');
+	if (!in_array($currentStep, $allowedSteps, true)) {
+		$currentStep = 'intro';
+	}
+
+	if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+		$action = isset($_POST['action']) ? (string)$_POST['action'] : '';
+		$postedCsrf = isset($_POST['csrf_token']) ? (string)$_POST['csrf_token'] : '';
+		if (!hash_equals($flow['csrf_token'], $postedCsrf)) {
+			$errors[] = 'Ungültiges Formular-Token. Bitte lade die Seite neu.';
+			$currentStep = 'intro';
+		} else {
+			if ($action === 'start') {
+				$sessionId = questionnaireStartSession($pdo, (int)$questionnaire['id']);
+				$flow['session_id'] = $sessionId;
+				$flow['questionnaire_id'] = (int)$questionnaire['id'];
+				$flow['completion_token'] = bin2hex(random_bytes(32));
+				unset($flow['last_result']);
+				$currentStep = 'demographics';
+			}
+
+			if ($action === 'save_demographics') {
+				$postedDemographics = questionnaireReadDemographicsFromPost($demographicFields);
+				$demographicValidation = questionnaireValidateDemographics($demographicFields, $postedDemographics);
+				$errors = array_merge($errors, $demographicValidation['errors']);
+				if (empty($errors)) {
+					$flow['pending_demographics'] = $demographicValidation['values'];
+					$currentStep = 'items';
+				} else {
+					$currentStep = 'demographics';
+				}
+			}
+
+			if ($action === 'finish') {
+				$postedDemographics = questionnaireReadDemographicsFromPost($demographicFields);
+				$postedItems = questionnaireReadItemsFromPost($items);
+				$demographicValidation = questionnaireValidateDemographics($demographicFields, $postedDemographics);
+				$itemValidation = questionnaireValidateItems($items, $postedItems);
+				$errors = array_merge($errors, $demographicValidation['errors'], $itemValidation['errors']);
+
+				if (!isset($flow['session_id']) || (int)$flow['session_id'] <= 0) {
+					$errors[] = 'Keine laufende Durchführung gefunden. Bitte starte den Fragebogen neu.';
+				}
+				if (!isset($flow['questionnaire_id']) || (int)$flow['questionnaire_id'] !== (int)$questionnaire['id']) {
+					$errors[] = 'Die Durchführung gehört nicht zu diesem Fragebogen.';
+				}
+				$postedCompletionToken = isset($_POST['completion_token']) ? (string)$_POST['completion_token'] : '';
+				if (!isset($flow['completion_token']) || !hash_equals((string)$flow['completion_token'], $postedCompletionToken)) {
+					$errors[] = 'Ungültiges Abschluss-Token. Bitte starte die Durchführung neu.';
+				}
+
+				if (empty($errors)) {
+					$result = questionnaireCompleteSessionIdempotent(
+						$pdo,
+						(int)$flow['session_id'],
+						$questionnaire,
+						$demographicValidation['values'],
+						$itemValidation['values']
+					);
+					$flow['last_result'] = $result;
+					$currentStep = 'done';
+					$messages[] = $result['already_completed'] ? 'Die Durchführung war bereits abgeschlossen. Ergebnis wird erneut angezeigt.' : 'Fragebogen erfolgreich abgeschlossen.';
+				} else {
+					$currentStep = 'items';
+				}
+			}
+		}
+	}
+
+	if ($currentStep === 'intro' && isset($flow['session_id']) && isset($flow['questionnaire_id']) && (int)$flow['questionnaire_id'] === (int)$questionnaire['id']) {
+		$currentStep = 'demographics';
+	}
+	if ($currentStep === 'items' && !isset($flow['session_id'])) {
+		$currentStep = 'intro';
+	}
+	if ($currentStep === 'done' && !isset($flow['last_result'])) {
+		$currentStep = 'intro';
+	}
+
+	echo '<h1>'.htmlentities((string)$questionnaire['title']).'</h1>';
+	if (!empty($messages)) {
+		echo '<ul>';
+		foreach ($messages as $message) {
+			echo '<li>'.htmlentities((string)$message).'</li>';
+		}
+		echo '</ul>';
+	}
+	if (!empty($errors)) {
+		echo '<ul>';
+		foreach ($errors as $error) {
+			echo '<li>'.htmlentities((string)$error).'</li>';
+		}
+		echo '</ul>';
+	}
+
+	if ($currentStep === 'intro') {
+		echo '<p>'.nl2br(htmlentities((string)$questionnaire['intro_text'])).'</p>';
+		echo '<form method="post" action="?step=demographics">';
+		echo '<input type="hidden" name="action" value="start">';
+		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
+		echo '<button type="submit">Fragebogen starten</button>';
+		echo '</form>';
+		return;
+	}
+
+	if ($currentStep === 'demographics') {
+		$values = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
+		echo '<h2>1) Demografische Angaben</h2>';
+		echo '<form method="post" action="?step=items">';
+		echo '<input type="hidden" name="action" value="save_demographics">';
+		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
+		questionnaireRenderDemographicInputs($demographicFields, $values);
+		echo '<button type="submit">Weiter zu den Items</button>';
+		echo '</form>';
+		return;
+	}
+
+	if ($currentStep === 'items') {
+		$demoValues = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
+		$itemValues = !empty($postedItems) ? $postedItems : array();
+		echo '<h2>2) Items beantworten</h2>';
+		echo '<form method="post" action="?step=done">';
+		echo '<input type="hidden" name="action" value="finish">';
+		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
+		echo '<input type="hidden" name="completion_token" value="'.htmlentities((string)$flow['completion_token']).'">';
+		questionnaireRenderHiddenDemographics($demographicFields, $demoValues);
+		questionnaireRenderItems($items, $itemValues);
+		echo '<button type="submit">Abschließen</button>';
+		echo '</form>';
+		return;
+	}
+
+	$result = isset($flow['last_result']) && is_array($flow['last_result']) ? $flow['last_result'] : null;
+	echo '<h2>3) Abschluss</h2>';
+	if (!$result) {
+		echo '<p>Kein Ergebnis vorhanden.</p>';
+		return;
+	}
+	echo '<p>Session-ID: '.(int)$result['session_id'].'</p>';
+	echo '<p>Gesamtscore (Mittelwert): '.htmlentities((string)$result['total_mean']).'</p>';
+	echo '<p>Gesamtscore (Summe): '.htmlentities((string)$result['total_sum']).'</p>';
+	if (!empty($result['subscales'])) {
+		echo '<h3>Subskalen</h3><ul>';
+		foreach ($result['subscales'] as $subscale) {
+			echo '<li>'.htmlentities((string)$subscale['score_key']).': Mean '.htmlentities((string)$subscale['raw_mean']).', Sum '.htmlentities((string)$subscale['raw_sum']).'</li>';
+		}
+		echo '</ul>';
+	}
+	echo '<form method="post" action="?step=intro">';
+	echo '<input type="hidden" name="action" value="start">';
+	echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
+	echo '<button type="submit">Neue Durchführung starten</button>';
+	echo '</form>';
+}
+
+function questionnaireLoadActiveQuestionnaire(PDO $pdo) {
+	$stmt = $pdo->prepare('SELECT id, slug, title, intro_text FROM questionnaires WHERE status = :status ORDER BY updated_at DESC, id DESC LIMIT 1');
+	$stmt->execute(array(':status' => 'active'));
+	return $stmt->fetch(PDO::FETCH_ASSOC);
+}
+
+function questionnaireLoadDemographicFields(PDO $pdo, $questionnaireId) {
+	$stmt = $pdo->prepare('SELECT id, field_key, label, field_type, is_required, allowed_values_json FROM questionnaire_demographic_fields WHERE questionnaire_id = :questionnaire_id ORDER BY id ASC');
+	$stmt->execute(array(':questionnaire_id' => (int)$questionnaireId));
+	return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function questionnaireLoadItems(PDO $pdo, $questionnaireId) {
+	$stmt = $pdo->prepare('SELECT id, item_no, item_text, scale_type, likert_min, likert_max, is_reversed, subscale_key, is_required FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id ORDER BY item_no ASC, id ASC');
+	$stmt->execute(array(':questionnaire_id' => (int)$questionnaireId));
+	return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function questionnaireStartSession(PDO $pdo, $questionnaireId) {
+	$userId = isset($_SESSION['userid']) && (int)$_SESSION['userid'] > 0 ? (int)$_SESSION['userid'] : null;
+	$stmt = $pdo->prepare('INSERT INTO questionnaire_sessions (questionnaire_id, user_id, started_at, completion_status) VALUES (:questionnaire_id, :user_id, NOW(), :completion_status)');
+	$stmt->bindValue(':questionnaire_id', (int)$questionnaireId, PDO::PARAM_INT);
+	if ($userId === null) {
+		$stmt->bindValue(':user_id', null, PDO::PARAM_NULL);
+	} else {
+		$stmt->bindValue(':user_id', $userId, PDO::PARAM_INT);
+	}
+	$stmt->bindValue(':completion_status', 'in_progress', PDO::PARAM_STR);
+	$stmt->execute();
+	return (int)$pdo->lastInsertId();
+}
+
+function questionnaireReadDemographicsFromPost(array $fields) {
+	$values = array();
+	foreach ($fields as $field) {
+		$key = isset($field['field_key']) ? (string)$field['field_key'] : '';
+		if ($key === '') {
+			continue;
+		}
+		$values[$key] = isset($_POST['demographics'][$key]) ? trim((string)$_POST['demographics'][$key]) : '';
+	}
+	return $values;
+}
+
+function questionnaireReadItemsFromPost(array $items) {
+	$values = array();
+	foreach ($items as $item) {
+		$itemId = isset($item['id']) ? (int)$item['id'] : 0;
+		if ($itemId <= 0) {
+			continue;
+		}
+		$raw = isset($_POST['responses'][$itemId]) ? (string)$_POST['responses'][$itemId] : '';
+		$values[$itemId] = trim($raw);
+	}
+	return $values;
+}
+
+function questionnaireValidateDemographics(array $fields, array $rawValues) {
+	$errors = array();
+	$values = array();
+
+	foreach ($fields as $field) {
+		$key = isset($field['field_key']) ? (string)$field['field_key'] : '';
+		if ($key === '') {
+			continue;
+		}
+		$label = isset($field['label']) && (string)$field['label'] !== '' ? (string)$field['label'] : $key;
+		$type = isset($field['field_type']) ? strtolower((string)$field['field_type']) : 'text';
+		$isRequired = isset($field['is_required']) && (int)$field['is_required'] === 1;
+		$value = array_key_exists($key, $rawValues) ? trim((string)$rawValues[$key]) : '';
+
+		if ($isRequired && $value === '') {
+			$errors[] = 'Pflichtfeld fehlt: '.$label;
+			continue;
+		}
+		if ($value === '') {
+			$values[$key] = '';
+			continue;
+		}
+
+		$rules = null;
+		if (isset($field['allowed_values_json']) && $field['allowed_values_json'] !== null && trim((string)$field['allowed_values_json']) !== '') {
+			$rules = json_decode((string)$field['allowed_values_json'], true);
+			if (json_last_error() !== JSON_ERROR_NONE) {
+				$errors[] = 'Ungültige Feldkonfiguration bei '.$label.'.';
+				continue;
+			}
+		}
+
+		if ($type === 'integer' || $type === 'number') {
+			if (!preg_match('/^-?\d+$/', $value)) {
+				$errors[] = $label.' muss eine ganze Zahl sein.';
+				continue;
+			}
+			$number = (int)$value;
+			if (is_array($rules)) {
+				if (isset($rules['min']) && $number < (int)$rules['min']) {
+					$errors[] = $label.' ist zu klein.';
+				}
+				if (isset($rules['max']) && $number > (int)$rules['max']) {
+					$errors[] = $label.' ist zu groß.';
+				}
+			}
+			$values[$key] = (string)$number;
+			continue;
+		}
+
+		if (is_array($rules)) {
+			$allowed = array();
+			if (array_values($rules) === $rules) {
+				$allowed = $rules;
+			} elseif (isset($rules['options']) && is_array($rules['options'])) {
+				$allowed = $rules['options'];
+			}
+			if (!empty($allowed) && !in_array($value, $allowed, true)) {
+				$errors[] = $label.' enthält einen ungültigen Wert.';
+				continue;
+			}
+			if (isset($rules['regex']) && is_string($rules['regex']) && $rules['regex'] !== '') {
+				if (@preg_match($rules['regex'], '') === false || preg_match($rules['regex'], $value) !== 1) {
+					$errors[] = $label.' entspricht nicht dem erforderlichen Format.';
+					continue;
+				}
+			}
+		}
+		if (mb_strlen($value) > 255) {
+			$errors[] = $label.' ist zu lang (max. 255 Zeichen).';
+			continue;
+		}
+		$values[$key] = $value;
+	}
+
+	return array('errors' => $errors, 'values' => $values);
+}
+
+function questionnaireValidateItems(array $items, array $rawValues) {
+	$errors = array();
+	$values = array();
+
+	foreach ($items as $item) {
+		$itemId = isset($item['id']) ? (int)$item['id'] : 0;
+		if ($itemId <= 0) {
+			continue;
+		}
+		$isRequired = isset($item['is_required']) && (int)$item['is_required'] === 1;
+		$raw = array_key_exists($itemId, $rawValues) ? trim((string)$rawValues[$itemId]) : '';
+		$itemLabel = 'Item '.(int)$item['item_no'];
+
+		if ($isRequired && $raw === '') {
+			$errors[] = $itemLabel.' ist ein Pflichtfeld.';
+			continue;
+		}
+		if ($raw === '') {
+			$values[$itemId] = null;
+			continue;
+		}
+		if (!preg_match('/^-?\d+$/', $raw)) {
+			$errors[] = $itemLabel.' muss eine ganze Zahl sein.';
+			continue;
+		}
+		$value = (int)$raw;
+		$min = isset($item['likert_min']) ? (int)$item['likert_min'] : 0;
+		$max = isset($item['likert_max']) ? (int)$item['likert_max'] : 0;
+		if ($value < $min || $value > $max) {
+			$errors[] = $itemLabel.' liegt außerhalb des erlaubten Bereichs ('.$min.' bis '.$max.').';
+			continue;
+		}
+		if (isset($item['scale_type']) && $item['scale_type'] === 'binary' && !($value === 0 || $value === 1)) {
+			$errors[] = $itemLabel.' muss bei binärer Skala 0 oder 1 sein.';
+			continue;
+		}
+		$values[$itemId] = $value;
+	}
+
+	return array('errors' => $errors, 'values' => $values);
+}
+
+function questionnaireRenderDemographicInputs(array $fields, array $values) {
+	if (empty($fields)) {
+		echo '<p>Keine demografischen Pflichtangaben konfiguriert.</p>';
+		return;
+	}
+	foreach ($fields as $field) {
+		$key = isset($field['field_key']) ? (string)$field['field_key'] : '';
+		if ($key === '') {
+			continue;
+		}
+		$label = isset($field['label']) ? (string)$field['label'] : $key;
+		$type = isset($field['field_type']) ? strtolower((string)$field['field_type']) : 'text';
+		$isRequired = isset($field['is_required']) && (int)$field['is_required'] === 1;
+		$current = array_key_exists($key, $values) ? (string)$values[$key] : '';
+		echo '<label for="demo_'.htmlentities($key).'">'.htmlentities($label).($isRequired ? ' *' : '').'</label><br>';
+		if ($type === 'integer' || $type === 'number') {
+			echo '<input type="number" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+		} else {
+			echo '<input type="text" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+		}
+	}
+}
+
+function questionnaireRenderHiddenDemographics(array $fields, array $values) {
+	foreach ($fields as $field) {
+		$key = isset($field['field_key']) ? (string)$field['field_key'] : '';
+		if ($key === '') {
+			continue;
+		}
+		$current = array_key_exists($key, $values) ? (string)$values[$key] : '';
+		echo '<input type="hidden" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'">';
+	}
+}
+
+function questionnaireRenderItems(array $items, array $values) {
+	if (empty($items)) {
+		echo '<p>Für diesen Fragebogen sind keine Items konfiguriert.</p>';
+		return;
+	}
+	foreach ($items as $item) {
+		$itemId = (int)$item['id'];
+		$min = (int)$item['likert_min'];
+		$max = (int)$item['likert_max'];
+		$isRequired = isset($item['is_required']) && (int)$item['is_required'] === 1;
+		$current = array_key_exists($itemId, $values) ? (string)$values[$itemId] : '';
+		echo '<fieldset style="margin-bottom:12px;"><legend>'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' *' : '').'</legend>';
+		for ($value = $min; $value <= $max; $value++) {
+			$checked = ($current !== '' && (int)$current === $value) ? 'checked' : '';
+			echo '<label style="margin-right:10px;"><input type="radio" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' '.($isRequired ? 'required' : '').'> '.$value.'</label>';
+		}
+		echo '</fieldset>';
+	}
+}
+
+function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $questionnaire, array $demographics, array $responses) {
+	$pdo->beginTransaction();
+	try {
+		$sessionStmt = $pdo->prepare('SELECT id, questionnaire_id, finished_at, completion_status FROM questionnaire_sessions WHERE id = :id FOR UPDATE');
+		$sessionStmt->execute(array(':id' => (int)$sessionId));
+		$session = $sessionStmt->fetch(PDO::FETCH_ASSOC);
+		if (!$session) {
+			throw new RuntimeException('Session nicht gefunden.');
+		}
+		if ((int)$session['questionnaire_id'] !== (int)$questionnaire['id']) {
+			throw new RuntimeException('Session passt nicht zum Fragebogen.');
+		}
+
+		if ($session['finished_at'] !== null || $session['completion_status'] === 'completed') {
+			$result = questionnaireLoadStoredResult($pdo, (int)$sessionId);
+			$result['already_completed'] = true;
+			$pdo->commit();
+			return $result;
+		}
+
+		$deleteDemoStmt = $pdo->prepare('DELETE FROM questionnaire_session_demographics WHERE session_id = :session_id');
+		$deleteDemoStmt->execute(array(':session_id' => (int)$sessionId));
+		$insertDemoStmt = $pdo->prepare('INSERT INTO questionnaire_session_demographics (session_id, field_key, demographic_value) VALUES (:session_id, :field_key, :demographic_value)');
+		foreach ($demographics as $fieldKey => $fieldValue) {
+			$insertDemoStmt->execute(array(
+				':session_id' => (int)$sessionId,
+				':field_key' => (string)$fieldKey,
+				':demographic_value' => (string)$fieldValue
+			));
+		}
+
+		$itemStmt = $pdo->prepare('SELECT id, likert_min, likert_max, is_reversed, subscale_key FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id');
+		$itemStmt->execute(array(':questionnaire_id' => (int)$questionnaire['id']));
+		$items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
+		$itemMap = array();
+		foreach ($items as $item) {
+			$itemMap[(int)$item['id']] = $item;
+		}
+
+		$deleteAnswerStmt = $pdo->prepare('DELETE FROM questionnaire_answers WHERE session_id = :session_id');
+		$deleteAnswerStmt->execute(array(':session_id' => (int)$sessionId));
+		$insertAnswerStmt = $pdo->prepare('INSERT INTO questionnaire_answers (session_id, item_id, raw_value, scored_value) VALUES (:session_id, :item_id, :raw_value, :scored_value)');
+
+		$totalSum = 0.0;
+		$totalCount = 0;
+		$subscaleBuckets = array();
+		foreach ($responses as $itemId => $rawValue) {
+			if (!isset($itemMap[(int)$itemId]) || $rawValue === null) {
+				continue;
+			}
+			$item = $itemMap[(int)$itemId];
+			$rawFloat = (float)$rawValue;
+			$min = (float)$item['likert_min'];
+			$max = (float)$item['likert_max'];
+			$scoredValue = (int)$item['is_reversed'] === 1 ? (($min + $max) - $rawFloat) : $rawFloat;
+			$insertAnswerStmt->execute(array(
+				':session_id' => (int)$sessionId,
+				':item_id' => (int)$itemId,
+				':raw_value' => $rawFloat,
+				':scored_value' => $scoredValue
+			));
+			$totalSum += $scoredValue;
+			$totalCount++;
+			$subscaleKey = isset($item['subscale_key']) ? trim((string)$item['subscale_key']) : '';
+			if ($subscaleKey !== '') {
+				if (!isset($subscaleBuckets[$subscaleKey])) {
+					$subscaleBuckets[$subscaleKey] = array('sum' => 0.0, 'count' => 0);
+				}
+				$subscaleBuckets[$subscaleKey]['sum'] += $scoredValue;
+				$subscaleBuckets[$subscaleKey]['count']++;
+			}
+		}
+
+		$deleteScoreStmt = $pdo->prepare('DELETE FROM questionnaire_scores WHERE session_id = :session_id');
+		$deleteScoreStmt->execute(array(':session_id' => (int)$sessionId));
+		$insertScoreStmt = $pdo->prepare('INSERT INTO questionnaire_scores (session_id, score_type, score_key, raw_mean, raw_sum, n_answered) VALUES (:session_id, :score_type, :score_key, :raw_mean, :raw_sum, :n_answered)');
+		$totalMean = $totalCount > 0 ? ($totalSum / $totalCount) : null;
+		$insertScoreStmt->execute(array(
+			':session_id' => (int)$sessionId,
+			':score_type' => 'total',
+			':score_key' => 'total',
+			':raw_mean' => $totalMean,
+			':raw_sum' => $totalCount > 0 ? $totalSum : null,
+			':n_answered' => $totalCount > 0 ? $totalCount : null
+		));
+
+		foreach ($subscaleBuckets as $subscaleKey => $bucket) {
+			$mean = $bucket['count'] > 0 ? ($bucket['sum'] / $bucket['count']) : null;
+			$insertScoreStmt->execute(array(
+				':session_id' => (int)$sessionId,
+				':score_type' => 'subscale',
+				':score_key' => $subscaleKey,
+				':raw_mean' => $mean,
+				':raw_sum' => $bucket['count'] > 0 ? $bucket['sum'] : null,
+				':n_answered' => $bucket['count'] > 0 ? $bucket['count'] : null
+			));
+		}
+
+		$updateSessionStmt = $pdo->prepare('UPDATE questionnaire_sessions SET completion_status = :completion_status, finished_at = NOW() WHERE id = :id');
+		$updateSessionStmt->execute(array(
+			':completion_status' => 'completed',
+			':id' => (int)$sessionId
+		));
+
+		$result = questionnaireLoadStoredResult($pdo, (int)$sessionId);
+		$result['already_completed'] = false;
+		$pdo->commit();
+		return $result;
+	} catch (Throwable $e) {
+		if ($pdo->inTransaction()) {
+			$pdo->rollBack();
+		}
+		throw $e;
+	}
+}
+
+function questionnaireLoadStoredResult(PDO $pdo, $sessionId) {
+	$stmt = $pdo->prepare('SELECT score_type, score_key, raw_mean, raw_sum FROM questionnaire_scores WHERE session_id = :session_id ORDER BY score_type ASC, score_key ASC');
+	$stmt->execute(array(':session_id' => (int)$sessionId));
+	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$result = array(
+		'session_id' => (int)$sessionId,
+		'total_mean' => null,
+		'total_sum' => null,
+		'subscales' => array()
+	);
+	foreach ($rows as $row) {
+		if ($row['score_type'] === 'total' && $row['score_key'] === 'total') {
+			$result['total_mean'] = $row['raw_mean'];
+			$result['total_sum'] = $row['raw_sum'];
+		} elseif ($row['score_type'] === 'subscale') {
+			$result['subscales'][] = $row;
+		}
+	}
+	return $result;
 }
