@@ -545,7 +545,7 @@ function questionnaire_show_frontend() {
 		$action = isset($_POST['action']) ? (string)$_POST['action'] : '';
 		$postedCsrf = isset($_POST['csrf_token']) ? (string)$_POST['csrf_token'] : '';
 		if (!hash_equals($flow['csrf_token'], $postedCsrf)) {
-			$errors[] = 'Ungültiges Formular-Token. Bitte lade die Seite neu.';
+			$errors[] = questionnaireBuildValidationError('Ungültiges Formular-Token. Bitte lade die Seite neu.', 'system');
 			$currentStep = 'intro';
 		} else {
 			if ($action === 'start') {
@@ -577,14 +577,14 @@ function questionnaire_show_frontend() {
 				$errors = array_merge($errors, $demographicValidation['errors'], $itemValidation['errors']);
 
 				if (!isset($flow['session_id']) || (int)$flow['session_id'] <= 0) {
-					$errors[] = 'Keine laufende Durchführung gefunden. Bitte starte den Fragebogen neu.';
+					$errors[] = questionnaireBuildValidationError('Keine laufende Durchführung gefunden. Bitte starte den Fragebogen neu.', 'system');
 				}
 				if (!isset($flow['questionnaire_id']) || (int)$flow['questionnaire_id'] !== (int)$questionnaire['id']) {
-					$errors[] = 'Die Durchführung gehört nicht zu diesem Fragebogen.';
+					$errors[] = questionnaireBuildValidationError('Die Durchführung gehört nicht zu diesem Fragebogen.', 'system');
 				}
 				$postedCompletionToken = isset($_POST['completion_token']) ? (string)$_POST['completion_token'] : '';
 				if (!isset($flow['completion_token']) || !hash_equals((string)$flow['completion_token'], $postedCompletionToken)) {
-					$errors[] = 'Ungültiges Abschluss-Token. Bitte starte die Durchführung neu.';
+					$errors[] = questionnaireBuildValidationError('Ungültiges Abschluss-Token. Bitte starte die Durchführung neu.', 'system');
 				}
 
 				if (empty($errors)) {
@@ -616,6 +616,7 @@ function questionnaire_show_frontend() {
 	}
 
 	echo '<h1>'.htmlentities((string)$questionnaire['title']).'</h1>';
+	$collectedErrors = questionnaireCollectFieldErrors($errors);
 	if (!empty($messages)) {
 		echo '<ul>';
 		foreach ($messages as $message) {
@@ -623,10 +624,10 @@ function questionnaire_show_frontend() {
 		}
 		echo '</ul>';
 	}
-	if (!empty($errors)) {
+	if (!empty($collectedErrors['general'])) {
 		echo '<ul>';
-		foreach ($errors as $error) {
-			echo '<li>'.htmlentities((string)$error).'</li>';
+		foreach ($collectedErrors['general'] as $error) {
+			echo '<li>'.htmlentities((string)$error['message']).'</li>';
 		}
 		echo '</ul>';
 	}
@@ -643,11 +644,18 @@ function questionnaire_show_frontend() {
 
 	if ($currentStep === 'demographics') {
 		$values = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
+		$summaryErrors = array();
+		foreach ($collectedErrors['summary'] as $summaryError) {
+			if (isset($summaryError['field_key'])) {
+				$summaryErrors[] = $summaryError;
+			}
+		}
 		echo '<h2>1) Demografische Angaben</h2>';
+		questionnaireRenderErrorSummary($summaryErrors);
 		echo '<form method="post" action="?step=items">';
 		echo '<input type="hidden" name="action" value="save_demographics">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
-		questionnaireRenderDemographicInputs($demographicFields, $values);
+		questionnaireRenderDemographicInputs($demographicFields, $values, $collectedErrors['field_keys']);
 		echo '<button type="submit">Weiter zu den Items</button>';
 		echo '</form>';
 		return;
@@ -656,13 +664,20 @@ function questionnaire_show_frontend() {
 	if ($currentStep === 'items') {
 		$demoValues = !empty($postedDemographics) ? $postedDemographics : (isset($flow['pending_demographics']) && is_array($flow['pending_demographics']) ? $flow['pending_demographics'] : array());
 		$itemValues = !empty($postedItems) ? $postedItems : array();
+		$summaryErrors = array();
+		foreach ($collectedErrors['summary'] as $summaryError) {
+			if (isset($summaryError['item_id'])) {
+				$summaryErrors[] = $summaryError;
+			}
+		}
 		echo '<h2>2) Items beantworten</h2>';
+		questionnaireRenderErrorSummary($summaryErrors);
 		echo '<form method="post" action="?step=done">';
 		echo '<input type="hidden" name="action" value="finish">';
 		echo '<input type="hidden" name="csrf_token" value="'.htmlentities($flow['csrf_token']).'">';
 		echo '<input type="hidden" name="completion_token" value="'.htmlentities((string)$flow['completion_token']).'">';
 		questionnaireRenderHiddenDemographics($demographicFields, $demoValues);
-		questionnaireRenderItems($items, $itemValues);
+		questionnaireRenderItems($items, $itemValues, $collectedErrors['item_ids']);
 		echo '<button type="submit">Abschließen</button>';
 		echo '</form>';
 		return;
@@ -775,7 +790,11 @@ function questionnaireValidateDemographics(array $fields, array $rawValues) {
 		$value = array_key_exists($key, $rawValues) ? trim((string)$rawValues[$key]) : '';
 
 		if ($isRequired && $value === '') {
-			$errors[] = 'Pflichtfeld fehlt: '.$label;
+			$errors[] = questionnaireBuildValidationError(
+				'Pflichtfeld fehlt: '.$label,
+				'required',
+				array('field_key' => $key, 'target_id' => 'demo_'.$key)
+			);
 			continue;
 		}
 		if ($value === '') {
@@ -787,23 +806,39 @@ function questionnaireValidateDemographics(array $fields, array $rawValues) {
 		if (isset($field['allowed_values_json']) && $field['allowed_values_json'] !== null && trim((string)$field['allowed_values_json']) !== '') {
 			$rules = json_decode((string)$field['allowed_values_json'], true);
 			if (json_last_error() !== JSON_ERROR_NONE) {
-				$errors[] = 'Ungültige Feldkonfiguration bei '.$label.'.';
+				$errors[] = questionnaireBuildValidationError(
+					'Ungültige Feldkonfiguration bei '.$label.'.',
+					'format',
+					array('field_key' => $key, 'target_id' => 'demo_'.$key)
+				);
 				continue;
 			}
 		}
 
 		if ($type === 'integer' || $type === 'number') {
 			if (!preg_match('/^-?\d+$/', $value)) {
-				$errors[] = $label.' muss eine ganze Zahl sein.';
+				$errors[] = questionnaireBuildValidationError(
+					$label.' muss eine ganze Zahl sein.',
+					'format',
+					array('field_key' => $key, 'target_id' => 'demo_'.$key)
+				);
 				continue;
 			}
 			$number = (int)$value;
 			if (is_array($rules)) {
 				if (isset($rules['min']) && $number < (int)$rules['min']) {
-					$errors[] = $label.' ist zu klein.';
+					$errors[] = questionnaireBuildValidationError(
+						$label.' ist zu klein.',
+						'range',
+						array('field_key' => $key, 'target_id' => 'demo_'.$key)
+					);
 				}
 				if (isset($rules['max']) && $number > (int)$rules['max']) {
-					$errors[] = $label.' ist zu groß.';
+					$errors[] = questionnaireBuildValidationError(
+						$label.' ist zu groß.',
+						'range',
+						array('field_key' => $key, 'target_id' => 'demo_'.$key)
+					);
 				}
 			}
 			$values[$key] = (string)$number;
@@ -818,18 +853,30 @@ function questionnaireValidateDemographics(array $fields, array $rawValues) {
 				$allowed = $rules['options'];
 			}
 			if (!empty($allowed) && !in_array($value, $allowed, true)) {
-				$errors[] = $label.' enthält einen ungültigen Wert.';
+				$errors[] = questionnaireBuildValidationError(
+					$label.' enthält einen ungültigen Wert.',
+					'format',
+					array('field_key' => $key, 'target_id' => 'demo_'.$key)
+				);
 				continue;
 			}
 			if (isset($rules['regex']) && is_string($rules['regex']) && $rules['regex'] !== '') {
 				if (@preg_match($rules['regex'], '') === false || preg_match($rules['regex'], $value) !== 1) {
-					$errors[] = $label.' entspricht nicht dem erforderlichen Format.';
+					$errors[] = questionnaireBuildValidationError(
+						$label.' entspricht nicht dem erforderlichen Format.',
+						'format',
+						array('field_key' => $key, 'target_id' => 'demo_'.$key)
+					);
 					continue;
 				}
 			}
 		}
 		if (mb_strlen($value) > 255) {
-			$errors[] = $label.' ist zu lang (max. 255 Zeichen).';
+			$errors[] = questionnaireBuildValidationError(
+				$label.' ist zu lang (max. 255 Zeichen).',
+				'range',
+				array('field_key' => $key, 'target_id' => 'demo_'.$key)
+			);
 			continue;
 		}
 		$values[$key] = $value;
@@ -852,7 +899,11 @@ function questionnaireValidateItems(array $items, array $rawValues) {
 		$itemLabel = 'Item '.(int)$item['item_no'];
 
 		if ($isRequired && $raw === '') {
-			$errors[] = $itemLabel.' ist ein Pflichtfeld.';
+			$errors[] = questionnaireBuildValidationError(
+				$itemLabel.' ist ein Pflichtfeld.',
+				'required',
+				array('item_id' => $itemId, 'target_id' => 'item_'.$itemId)
+			);
 			continue;
 		}
 		if ($raw === '') {
@@ -860,18 +911,30 @@ function questionnaireValidateItems(array $items, array $rawValues) {
 			continue;
 		}
 		if (!preg_match('/^-?\d+$/', $raw)) {
-			$errors[] = $itemLabel.' muss eine ganze Zahl sein.';
+			$errors[] = questionnaireBuildValidationError(
+				$itemLabel.' muss eine ganze Zahl sein.',
+				'format',
+				array('item_id' => $itemId, 'target_id' => 'item_'.$itemId)
+			);
 			continue;
 		}
 		$value = (int)$raw;
 		$min = isset($item['likert_min']) ? (int)$item['likert_min'] : 0;
 		$max = isset($item['likert_max']) ? (int)$item['likert_max'] : 0;
 		if ($value < $min || $value > $max) {
-			$errors[] = $itemLabel.' liegt außerhalb des erlaubten Bereichs ('.$min.' bis '.$max.').';
+			$errors[] = questionnaireBuildValidationError(
+				$itemLabel.' liegt außerhalb des erlaubten Bereichs ('.$min.' bis '.$max.').',
+				'range',
+				array('item_id' => $itemId, 'target_id' => 'item_'.$itemId)
+			);
 			continue;
 		}
 		if (isset($item['scale_type']) && $item['scale_type'] === 'binary' && !($value === 0 || $value === 1)) {
-			$errors[] = $itemLabel.' muss bei binärer Skala 0 oder 1 sein.';
+			$errors[] = questionnaireBuildValidationError(
+				$itemLabel.' muss bei binärer Skala 0 oder 1 sein.',
+				'format',
+				array('item_id' => $itemId, 'target_id' => 'item_'.$itemId)
+			);
 			continue;
 		}
 		$values[$itemId] = $value;
@@ -880,7 +943,7 @@ function questionnaireValidateItems(array $items, array $rawValues) {
 	return array('errors' => $errors, 'values' => $values);
 }
 
-function questionnaireRenderDemographicInputs(array $fields, array $values) {
+function questionnaireRenderDemographicInputs(array $fields, array $values, array $errorsByFieldKey = array()) {
 	if (empty($fields)) {
 		echo '<p>Keine demografischen Pflichtangaben konfiguriert.</p>';
 		return;
@@ -894,11 +957,25 @@ function questionnaireRenderDemographicInputs(array $fields, array $values) {
 		$type = isset($field['field_type']) ? strtolower((string)$field['field_type']) : 'text';
 		$isRequired = isset($field['is_required']) && (int)$field['is_required'] === 1;
 		$current = array_key_exists($key, $values) ? (string)$values[$key] : '';
+		$fieldError = isset($errorsByFieldKey[$key]) ? $errorsByFieldKey[$key] : null;
+		$errorId = 'error_demo_'.preg_replace('/[^a-zA-Z0-9_\-]/', '_', $key);
+		$inputAttributes = '';
+		if ($fieldError !== null) {
+			$inputAttributes = ' aria-invalid="true" aria-describedby="'.htmlentities($errorId).'"';
+		}
 		echo '<label for="demo_'.htmlentities($key).'">'.htmlentities($label).($isRequired ? ' *' : '').'</label><br>';
 		if ($type === 'integer' || $type === 'number') {
-			echo '<input type="number" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+			echo '<input type="number" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').$inputAttributes.'><br>';
 		} else {
-			echo '<input type="text" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').'><br><br>';
+			echo '<input type="text" id="demo_'.htmlentities($key).'" name="demographics['.htmlentities($key).']" maxlength="255" value="'.htmlentities($current).'" '.($isRequired ? 'required' : '').$inputAttributes.'><br>';
+		}
+		if ($fieldError !== null) {
+			$presentation = questionnaireGetErrorPresentation(isset($fieldError['error_type']) ? (string)$fieldError['error_type'] : 'format');
+			echo '<div id="'.htmlentities($errorId).'" style="margin:4px 0 10px 0; color:'.htmlentities($presentation['color']).'; border-left:3px solid '.htmlentities($presentation['color']).'; padding-left:8px;">';
+			echo '<strong>'.htmlentities($presentation['icon'].' '.$presentation['label']).':</strong> '.htmlentities((string)$fieldError['message']);
+			echo '</div>';
+		} else {
+			echo '<br>';
 		}
 	}
 }
@@ -914,7 +991,7 @@ function questionnaireRenderHiddenDemographics(array $fields, array $values) {
 	}
 }
 
-function questionnaireRenderItems(array $items, array $values) {
+function questionnaireRenderItems(array $items, array $values, array $errorsByItemId = array()) {
 	if (empty($items)) {
 		echo '<p>Für diesen Fragebogen sind keine Items konfiguriert.</p>';
 		return;
@@ -925,13 +1002,119 @@ function questionnaireRenderItems(array $items, array $values) {
 		$max = (int)$item['likert_max'];
 		$isRequired = isset($item['is_required']) && (int)$item['is_required'] === 1;
 		$current = array_key_exists($itemId, $values) ? (string)$values[$itemId] : '';
-		echo '<fieldset style="margin-bottom:12px;"><legend>'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' *' : '').'</legend>';
+		$fieldError = isset($errorsByItemId[$itemId]) ? $errorsByItemId[$itemId] : null;
+		$errorId = 'error_item_'.$itemId;
+		echo '<fieldset id="item_'.$itemId.'" style="margin-bottom:12px;"><legend>'.(int)$item['item_no'].'. '.htmlentities((string)$item['item_text']).($isRequired ? ' *' : '').'</legend>';
 		for ($value = $min; $value <= $max; $value++) {
 			$checked = ($current !== '' && (int)$current === $value) ? 'checked' : '';
-			echo '<label style="margin-right:10px;"><input type="radio" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' '.($isRequired ? 'required' : '').'> '.$value.'</label>';
+			$errorAttributes = '';
+			if ($fieldError !== null) {
+				$errorAttributes = ' aria-invalid="true" aria-describedby="'.htmlentities($errorId).'"';
+			}
+			echo '<label style="margin-right:10px;"><input type="radio" name="responses['.$itemId.']" value="'.$value.'" '.$checked.' '.($isRequired ? 'required' : '').$errorAttributes.'> '.$value.'</label>';
+		}
+		if ($fieldError !== null) {
+			$presentation = questionnaireGetErrorPresentation(isset($fieldError['error_type']) ? (string)$fieldError['error_type'] : 'format');
+			echo '<div id="'.htmlentities($errorId).'" style="margin-top:6px; color:'.htmlentities($presentation['color']).'; border-left:3px solid '.htmlentities($presentation['color']).'; padding-left:8px;">';
+			echo '<strong>'.htmlentities($presentation['icon'].' '.$presentation['label']).':</strong> '.htmlentities((string)$fieldError['message']);
+			echo '</div>';
 		}
 		echo '</fieldset>';
 	}
+}
+
+function questionnaireBuildValidationError($message, $errorType, array $context = array()) {
+	$sanitizedMessage = questionnaireSanitizeMessage($message);
+	$error = array(
+		'message' => $sanitizedMessage,
+		'error_type' => in_array($errorType, array('required', 'range', 'format', 'system'), true) ? $errorType : 'format'
+	);
+	if (isset($context['field_key']) && (string)$context['field_key'] !== '') {
+		$error['field_key'] = (string)$context['field_key'];
+	}
+	if (isset($context['item_id']) && (int)$context['item_id'] > 0) {
+		$error['item_id'] = (int)$context['item_id'];
+	}
+	if (isset($context['target_id']) && (string)$context['target_id'] !== '') {
+		$error['target_id'] = (string)$context['target_id'];
+	}
+	return $error;
+}
+
+function questionnaireSanitizeMessage($message) {
+	$normalized = trim((string)$message);
+	$normalized = preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $normalized);
+	return trim((string)$normalized);
+}
+
+function questionnaireCollectFieldErrors(array $errors) {
+	$result = array(
+		'general' => array(),
+		'field_keys' => array(),
+		'item_ids' => array(),
+		'summary' => array()
+	);
+	foreach ($errors as $error) {
+		if (!is_array($error)) {
+			$result['general'][] = questionnaireBuildValidationError((string)$error, 'system');
+			continue;
+		}
+		$normalized = questionnaireBuildValidationError(
+			isset($error['message']) ? (string)$error['message'] : '',
+			isset($error['error_type']) ? (string)$error['error_type'] : 'format',
+			$error
+		);
+		$isFieldError = false;
+		if (isset($normalized['field_key'])) {
+			$isFieldError = true;
+			if (!isset($result['field_keys'][$normalized['field_key']])) {
+				$result['field_keys'][$normalized['field_key']] = $normalized;
+			}
+		}
+		if (isset($normalized['item_id'])) {
+			$isFieldError = true;
+			if (!isset($result['item_ids'][$normalized['item_id']])) {
+				$result['item_ids'][$normalized['item_id']] = $normalized;
+			}
+		}
+		if ($isFieldError && isset($normalized['target_id']) && (string)$normalized['target_id'] !== '') {
+			$result['summary'][] = $normalized;
+		} elseif (!$isFieldError) {
+			$result['general'][] = $normalized;
+		}
+	}
+	return $result;
+}
+
+function questionnaireGetErrorPresentation($errorType) {
+	if ($errorType === 'required') {
+		return array('icon' => '⛔', 'label' => 'Pflichtfeldfehler', 'color' => '#b71c1c');
+	}
+	if ($errorType === 'range') {
+		return array('icon' => '📏', 'label' => 'Bereichsfehler', 'color' => '#e65100');
+	}
+	return array('icon' => '⚠️', 'label' => 'Formatfehler', 'color' => '#1565c0');
+}
+
+function questionnaireRenderErrorSummary(array $summaryErrors) {
+	if (empty($summaryErrors)) {
+		return;
+	}
+	echo '<div style="border:2px solid #b71c1c; background:#fff5f5; padding:12px; margin:10px 0;" aria-labelledby="questionnaire-error-summary-title">';
+	echo '<h3 id="questionnaire-error-summary-title" style="margin:0 0 8px 0;">Bitte korrigiere folgende Felder:</h3>';
+	echo '<ul style="margin:0; padding-left:20px;">';
+	foreach ($summaryErrors as $error) {
+		$presentation = questionnaireGetErrorPresentation(isset($error['error_type']) ? (string)$error['error_type'] : 'format');
+		$targetId = isset($error['target_id']) ? (string)$error['target_id'] : '';
+		if ($targetId === '') {
+			continue;
+		}
+		echo '<li><a href="#'.htmlentities($targetId).'" style="color:'.htmlentities($presentation['color']).';">';
+		echo htmlentities($presentation['icon'].' '.$presentation['label'].': '.(string)$error['message']);
+		echo '</a></li>';
+	}
+	echo '</ul>';
+	echo '</div>';
 }
 
 function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $questionnaire, array $demographics, array $responses) {
