@@ -37,6 +37,14 @@ function questionnaireScore(array $questionnaireConfig, array $responses) {
 		'plausibility_issues' => array()
 	);
 
+	if (empty($items)) {
+		$result['status'] = 'error';
+		$result['plausibility_issues'][] = array(
+			'reason' => 'Keine Item-Scoring-Konfiguration gefunden. Bitte Migration auf Fragebogen-Skalenkonfiguration abschließen.'
+		);
+		return $result;
+	}
+
 	$subscaleBuckets = array();
 	$totalScoredValues = array();
 	$totalItemCount = 0;
@@ -272,6 +280,117 @@ function questionnaireDecodeStandardRules(array $questionnaire) {
 	return $decoded;
 }
 
+function questionnaireResolveScoringConfig(array $questionnaire) {
+	$rules = questionnaireDecodeStandardRules($questionnaire);
+	$candidates = array();
+
+	if (isset($rules['scoring']) && is_array($rules['scoring'])) {
+		$candidates[] = $rules['scoring'];
+	}
+	if (isset($rules['scoring_config']) && is_array($rules['scoring_config'])) {
+		$candidates[] = $rules['scoring_config'];
+	}
+	if (isset($questionnaire['scoring_config_json']) && trim((string)$questionnaire['scoring_config_json']) !== '') {
+		$decoded = json_decode((string)$questionnaire['scoring_config_json'], true);
+		if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+			$candidates[] = $decoded;
+		}
+	}
+
+	foreach ($candidates as $candidate) {
+		$resolved = questionnaireNormalizeScoringConfig($candidate);
+		if (!empty($resolved['scales'])) {
+			return $resolved;
+		}
+	}
+
+	return array(
+		'scales' => array(),
+		'missing_configuration' => true,
+		'error_message' => 'Fehlende Skalenkonfiguration auf Fragebogenebene. Bitte Migration durchführen und scoring.scales pflegen.'
+	);
+}
+
+function questionnaireNormalizeScoringConfig(array $config) {
+	$normalized = array(
+		'minimum_answered_ratio' => isset($config['minimum_answered_ratio']) ? max(0.0, min(1.0, (float)$config['minimum_answered_ratio'])) : 0.8,
+		'total_score_mode' => isset($config['total_score_mode']) ? (string)$config['total_score_mode'] : null,
+		'total_score_modes' => isset($config['total_score_modes']) && is_array($config['total_score_modes']) ? $config['total_score_modes'] : array(),
+		'scales' => array(),
+		'missing_configuration' => false
+	);
+
+	$rawScales = array();
+	if (isset($config['scales']) && is_array($config['scales'])) {
+		$rawScales = $config['scales'];
+	} elseif (isset($config['subscales']) && is_array($config['subscales'])) {
+		foreach ($config['subscales'] as $key => $entry) {
+			if (!is_array($entry)) {
+				continue;
+			}
+			$entry['scale_key'] = isset($entry['scale_key']) ? $entry['scale_key'] : $key;
+			$rawScales[] = $entry;
+		}
+	}
+
+	foreach ($rawScales as $key => $scale) {
+		if (!is_array($scale)) {
+			continue;
+		}
+		$scaleKey = isset($scale['scale_key']) ? trim((string)$scale['scale_key']) : trim((string)$key);
+		if ($scaleKey === '') {
+			continue;
+		}
+		$itemNos = array();
+		if (isset($scale['item_nos']) && is_array($scale['item_nos'])) {
+			foreach ($scale['item_nos'] as $itemNo) {
+				$itemNoInt = (int)$itemNo;
+				if ($itemNoInt > 0) {
+					$itemNos[] = $itemNoInt;
+				}
+			}
+		}
+		$itemNos = array_values(array_unique($itemNos));
+		$normalized['scales'][$scaleKey] = array(
+			'scale_key' => $scaleKey,
+			'item_nos' => $itemNos,
+			'minimum_answered_ratio' => isset($scale['minimum_answered_ratio']) ? max(0.0, min(1.0, (float)$scale['minimum_answered_ratio'])) : $normalized['minimum_answered_ratio'],
+			'score_mode' => isset($scale['score_mode']) ? (string)$scale['score_mode'] : null,
+			'score_modes' => isset($scale['score_modes']) && is_array($scale['score_modes']) ? $scale['score_modes'] : array()
+		);
+	}
+
+	return $normalized;
+}
+
+function questionnaireMapScaleKeysByItemNo(array $scoringConfig, array $items) {
+	$map = array();
+	if (isset($scoringConfig['scales']) && is_array($scoringConfig['scales'])) {
+		foreach ($scoringConfig['scales'] as $scaleKey => $scaleConfig) {
+			if (!isset($scaleConfig['item_nos']) || !is_array($scaleConfig['item_nos'])) {
+				continue;
+			}
+			foreach ($scaleConfig['item_nos'] as $itemNo) {
+				$itemNoInt = (int)$itemNo;
+				if ($itemNoInt > 0) {
+					$map[$itemNoInt] = (string)$scaleKey;
+				}
+			}
+		}
+	}
+	foreach ($items as $item) {
+		$itemNo = isset($item['item_no']) ? (int)$item['item_no'] : 0;
+		if ($itemNo <= 0) {
+			continue;
+		}
+		if (!isset($map[$itemNo])) {
+			$map[$itemNo] = null;
+		}
+	}
+
+	return $map;
+}
+
 function questionnaireResolveQualityConfig(array $questionnaire) {
 	$rules = questionnaireDecodeStandardRules($questionnaire);
 	$quality = isset($rules['quality_parameters']) && is_array($rules['quality_parameters']) ? $rules['quality_parameters'] : array();
@@ -432,7 +551,7 @@ function questionnaireEvaluateSessionQuality(PDO $pdo, array $questionnaire, $se
 		);
 	}
 
-	$itemStmt = $pdo->prepare('SELECT id, item_no, subscale_key FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id');
+	$itemStmt = $pdo->prepare('SELECT id, item_no FROM questionnaire_items WHERE questionnaire_id = :questionnaire_id');
 	$itemStmt->execute(array(':questionnaire_id' => (int)$questionnaire['id']));
 	$items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -449,6 +568,12 @@ function questionnaireEvaluateSessionQuality(PDO $pdo, array $questionnaire, $se
 	$session = $sessionStmt->fetch(PDO::FETCH_ASSOC);
 
 	$qualityConfig = questionnaireResolveQualityConfig($questionnaire);
+	$scaleMapByItemNo = questionnaireMapScaleKeysByItemNo(questionnaireResolveScoringConfig($questionnaire), $items);
+	foreach ($items as &$item) {
+		$itemNo = isset($item['item_no']) ? (int)$item['item_no'] : 0;
+		$item['subscale_key'] = ($itemNo > 0 && isset($scaleMapByItemNo[$itemNo])) ? $scaleMapByItemNo[$itemNo] : null;
+	}
+	unset($item);
 	return questionnaireEvaluateQualityFromData(
 		$items,
 		$responsesByItemId,
@@ -496,7 +621,8 @@ function questionnaireRenderBackendQualityWarnings(PDO $pdo) {
 			qs.started_at,
 			qs.finished_at,
 			q.title,
-			q.standard_rules_json
+			q.standard_rules_json,
+			q.scoring_config_json
 		FROM questionnaire_sessions qs
 		INNER JOIN questionnaires q ON q.id = qs.questionnaire_id
 		WHERE qs.completion_status = "completed"
@@ -1374,9 +1500,17 @@ function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $que
 		$itemStmt->execute(array(':questionnaire_id' => (int)$questionnaire['id']));
 		$items = $itemStmt->fetchAll(PDO::FETCH_ASSOC);
 		$itemMap = array();
+		$legacySubscaleUsage = false;
 		foreach ($items as $item) {
 			$itemMap[(int)$item['id']] = $item;
+			if (isset($item['subscale_key']) && trim((string)$item['subscale_key']) !== '') {
+				$legacySubscaleUsage = true;
+			}
 		}
+		if ($legacySubscaleUsage) {
+			throw new RuntimeException('Legacy-Daten erkannt: questionnaire_items.subscale_key ist gesetzt. Bitte auf Fragebogen-Scoring-Konfiguration migrieren.');
+		}
+		$scaleMapByItemNo = questionnaireMapScaleKeysByItemNo($scoringConfig, $items);
 
 		$deleteAnswerStmt = $pdo->prepare('DELETE FROM questionnaire_answers WHERE session_id = :session_id');
 		$deleteAnswerStmt->execute(array(':session_id' => (int)$sessionId));
@@ -1400,40 +1534,56 @@ function questionnaireCompleteSessionIdempotent(PDO $pdo, $sessionId, array $que
 				':raw_value' => $rawFloat,
 				':scored_value' => $scoredValue
 			));
-			$totalSum += $scoredValue;
-			$totalCount++;
-			$subscaleKey = isset($item['subscale_key']) ? trim((string)$item['subscale_key']) : '';
-			if ($subscaleKey !== '') {
-				if (!isset($subscaleBuckets[$subscaleKey])) {
-					$subscaleBuckets[$subscaleKey] = array('sum' => 0.0, 'count' => 0);
-				}
-				$subscaleBuckets[$subscaleKey]['sum'] += $scoredValue;
-				$subscaleBuckets[$subscaleKey]['count']++;
-			}
+			$itemNo = isset($item['item_no']) ? (int)$item['item_no'] : 0;
+			$itemKey = isset($item['item_key']) && trim((string)$item['item_key']) !== '' ? (string)$item['item_key'] : ($itemNo > 0 ? 'item_'.$itemNo : 'item_'.$itemId);
+			$scoreInputs[$itemKey] = $rawFloat;
+			$itemDefinitions[] = array(
+				'item_key' => $itemKey,
+				'likert_min' => $min,
+				'likert_max' => $max,
+				'reverse_coded' => ((int)$item['is_reversed'] === 1),
+				'subscale_key' => ($itemNo > 0 && isset($scaleMapByItemNo[$itemNo])) ? $scaleMapByItemNo[$itemNo] : null
+			);
 		}
+		$subscaleConfig = array();
+		foreach ($scoringConfig['scales'] as $scaleKey => $scale) {
+			$subscaleConfig[$scaleKey] = array(
+				'minimum_answered_ratio' => $scale['minimum_answered_ratio'],
+				'score_mode' => $scale['score_mode'],
+				'score_modes' => $scale['score_modes']
+			);
+		}
+		$scoreResult = questionnaireScore(array(
+			'items' => $itemDefinitions,
+			'minimum_answered_ratio' => $scoringConfig['minimum_answered_ratio'],
+			'total_score_mode' => $scoringConfig['total_score_mode'],
+			'total_score_modes' => $scoringConfig['total_score_modes'],
+			'subscales' => $subscaleConfig
+		), $scoreInputs);
 
 		$deleteScoreStmt = $pdo->prepare('DELETE FROM questionnaire_scores WHERE session_id = :session_id');
 		$deleteScoreStmt->execute(array(':session_id' => (int)$sessionId));
 		$insertScoreStmt = $pdo->prepare('INSERT INTO questionnaire_scores (session_id, score_type, score_key, raw_mean, raw_sum, n_answered) VALUES (:session_id, :score_type, :score_key, :raw_mean, :raw_sum, :n_answered)');
-		$totalMean = $totalCount > 0 ? ($totalSum / $totalCount) : null;
+		$totalMean = isset($scoreResult['total']['mean']) ? $scoreResult['total']['mean'] : null;
+		$totalSum = isset($scoreResult['total']['sum']) ? $scoreResult['total']['sum'] : null;
+		$totalCount = isset($scoreResult['total']['answered_items']) ? (int)$scoreResult['total']['answered_items'] : null;
 		$insertScoreStmt->execute(array(
 			':session_id' => (int)$sessionId,
 			':score_type' => 'total',
 			':score_key' => 'total',
 			':raw_mean' => $totalMean,
-			':raw_sum' => $totalCount > 0 ? $totalSum : null,
-			':n_answered' => $totalCount > 0 ? $totalCount : null
+			':raw_sum' => $totalSum,
+			':n_answered' => $totalCount
 		));
 
-		foreach ($subscaleBuckets as $subscaleKey => $bucket) {
-			$mean = $bucket['count'] > 0 ? ($bucket['sum'] / $bucket['count']) : null;
+		foreach ($scoreResult['subscales'] as $subscaleKey => $bucket) {
 			$insertScoreStmt->execute(array(
 				':session_id' => (int)$sessionId,
 				':score_type' => 'subscale',
 				':score_key' => $subscaleKey,
-				':raw_mean' => $mean,
-				':raw_sum' => $bucket['count'] > 0 ? $bucket['sum'] : null,
-				':n_answered' => $bucket['count'] > 0 ? $bucket['count'] : null
+				':raw_mean' => isset($bucket['mean']) ? $bucket['mean'] : null,
+				':raw_sum' => isset($bucket['sum']) ? $bucket['sum'] : null,
+				':n_answered' => isset($bucket['answered_items']) ? (int)$bucket['answered_items'] : null
 			));
 		}
 
@@ -1479,7 +1629,7 @@ function questionnaireLoadStoredResult(PDO $pdo, $sessionId) {
 
 function questionnaireLoadResultBySession(PDO $pdo, $sessionId) {
 	$sessionStmt = $pdo->prepare('
-		SELECT qs.id, qs.questionnaire_id, qs.completion_status, qs.finished_at, q.slug, q.title, q.standard_rules_json
+		SELECT qs.id, qs.questionnaire_id, qs.completion_status, qs.finished_at, q.slug, q.title, q.standard_rules_json, q.scoring_config_json
 		FROM questionnaire_sessions qs
 		INNER JOIN questionnaires q ON q.id = qs.questionnaire_id
 		WHERE qs.id = :id
@@ -1642,6 +1792,7 @@ function questionnaireSchemaTableDefinitions() {
 		'questionnaire_items' => 'CREATE TABLE IF NOT EXISTS `questionnaire_items` (
 			`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 			`questionnaire_id` int(10) unsigned NOT NULL,
+			`item_key` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
 			`item_no` int(10) unsigned NOT NULL,
 			`item_text` text COLLATE utf8mb4_unicode_ci NOT NULL,
 			`scale_type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT \'likert\',
@@ -1652,6 +1803,7 @@ function questionnaireSchemaTableDefinitions() {
 			`is_required` tinyint(1) NOT NULL DEFAULT 1,
 			PRIMARY KEY (`id`),
 			KEY `idx_questionnaire_items_questionnaire_id` (`questionnaire_id`),
+			UNIQUE KEY `uniq_questionnaire_items_questionnaire_item_key` (`questionnaire_id`,`item_key`),
 			CONSTRAINT `fk_questionnaire_items_questionnaire_id`
 				FOREIGN KEY (`questionnaire_id`) REFERENCES `questionnaires` (`id`) ON DELETE CASCADE
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
