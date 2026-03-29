@@ -78,41 +78,45 @@
 	$listStmt->execute();
 	$questionnaires = $listStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
-<article>
-	<section>
+<article class="qnr-layout qnr-layout--backend">
+	<section class="qnr-card">
 		<?php questionnaire_show_backend_overview('Fragebögen', 'Fragebögen erstellen, bearbeiten und aktivieren/deaktivieren.'); ?>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h1>Neuen Fragebogen anlegen</h1>
 		<form action="" method="post">
-			<label for="title">Titel</label><br>
-			<input type="text" name="title" id="title" maxlength="255" required><br><br>
+			<div class="qnr-form-row">
+				<label for="title">Titel</label>
+				<input class="qnr-input" type="text" name="title" id="title" maxlength="255" required>
+			</div>
 
-			<label for="slug">Slug (URL-Schlüssel)</label><br>
-			<input type="text" name="slug" id="slug" maxlength="255" pattern="[a-z0-9\-]+" required><br><br>
+			<div class="qnr-form-row">
+				<label for="slug">Slug (URL-Schlüssel)</label>
+				<input class="qnr-input" type="text" name="slug" id="slug" maxlength="255" pattern="[a-z0-9\-]+" required>
+			</div>
 
-			<button type="submit" name="create_questionnaire" value="1">Fragebogen erstellen</button>
+			<button class="qnr-btn qnr-focusable" type="submit" name="create_questionnaire" value="1">Fragebogen erstellen</button>
 		</form>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Rückmeldungen</h2>
 		<?php if ($autoInstallNotice === '' && empty($errors) && empty($messages)) { ?>
 			<p>Keine Rückmeldungen.</p>
 		<?php } ?>
 		<?php if ($autoInstallNotice !== '') { ?>
-			<p><?php echo htmlentities($autoInstallNotice); ?></p>
+			<p class="qnr-alert"><?php echo htmlentities($autoInstallNotice); ?></p>
 		<?php } ?>
 		<?php if (!empty($errors)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--error">
 				<?php foreach ($errors as $errorMessage) { ?>
 					<li><?php echo htmlentities($errorMessage); ?></li>
 				<?php } ?>
 			</ul>
 		<?php } ?>
 		<?php if (!empty($messages)) { ?>
-			<ul>
+			<ul class="qnr-alert qnr-alert--success">
 				<?php foreach ($messages as $message) { ?>
 					<li><?php echo htmlentities($message); ?></li>
 				<?php } ?>
@@ -120,9 +124,10 @@
 		<?php } ?>
 	</section>
 
-	<section>
+	<section class="qnr-card">
 		<h2>Vorhandene Fragebögen</h2>
-		<table class="tablesorter" border="1" cellpadding="6" cellspacing="0">
+		<div class="qnr-table-wrap">
+		<table class="tablesorter qnr-table">
 			<thead>
 				<tr>
 					<th>ID</th>
@@ -146,16 +151,17 @@
 					<td>
 						<a href="questionnaire_edit.php?id=<?php echo (int)$questionnaire['id']; ?>">Bearbeiten</a> |
 						<a href="questionnaire_items.php?id=<?php echo (int)$questionnaire['id']; ?>">Items</a>
-						<form action="" method="post" style="display:inline; margin-left:10px;">
+						<form action="" method="post" class="qnr-inline-form">
 							<input type="hidden" name="questionnaire_id" value="<?php echo (int)$questionnaire['id']; ?>">
 							<input type="hidden" name="new_status" value="<?php echo $questionnaire['status'] === 'active' ? 'inactive' : 'active'; ?>">
-							<button type="submit" name="toggle_status" value="1"><?php echo $questionnaire['status'] === 'active' ? 'Inaktiv setzen' : 'Aktiv setzen'; ?></button>
+							<button class="qnr-btn qnr-btn--secondary qnr-focusable" type="submit" name="toggle_status" value="1"><?php echo $questionnaire['status'] === 'active' ? 'Inaktiv setzen' : 'Aktiv setzen'; ?></button>
 						</form>
 					</td>
 				</tr>
 				<?php } ?>
 			</tbody>
 		</table>
+		</div>
 	</section>
 </article>
 <?php include($_SERVER['DOCUMENT_ROOT'].'/include/backend/footer.inc.php'); ?>
